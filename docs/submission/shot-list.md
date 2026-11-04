@@ -1,0 +1,24 @@
+# Saath — Screenshot Shot List
+
+Capture at 1280×800 (desktop) and 390×844 (mobile, Chrome device
+toolbar). Save under `docs/submission/shots/`.
+
+| # | Screen | What must be visible |
+|---|--------|----------------------|
+| 1 | Home (desktop) | Jizo hero, greeting, five entry points |
+| 2 | Home (mobile) | Bottom nav, Jizo, mic button |
+| 3 | Chat | Jaipur plan + delegated task references |
+| 4 | Tasks | Parent + child rows, audit events |
+| 5 | Bookings | DEMO-XXXX reference (cab booking) |
+| 6 | Approvals | Pending approval with Approve/Deny |
+| 7 | Videos list | 4 COMPLETED lessons, Hindi badge if present |
+| 8 | Video player | Kettle lesson playing, captions on |
+| 9 | Calendar | Live Google events for today |
+| 10 | Nearby | Dentist results with LIVE badge + route |
+| 11 | Settings | "Saath replies in: Hindi" selected |
+| 12 | Connect/Nearby | Sample-data labels visible (honesty proof) |
+
+How: `cd Documents\Saath; .\.venv\Scripts\python.exe -m uvicorn
+main:app --host 127.0.0.1 --port 8091`, open `/web/`, log in as
+`demostudio`. Use Chrome headless only if unattended; human-taken
+shots look better for submission.

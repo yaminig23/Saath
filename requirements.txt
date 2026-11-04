@@ -1,0 +1,8 @@
+# Packages the Saath brain needs (Milestone 0, pinned in Milestone 8).
+# fastapi[standard]: web framework plus its documented server and CLI.
+# sqlalchemy: database toolkit (used from Milestone 1).
+# tzdata: timezone database for correct local-day math on machines
+# without system zoneinfo data (Windows).
+fastapi[standard]==0.162.0
+sqlalchemy==2.1.6
+tzdata==2026.6
