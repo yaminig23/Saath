@@ -19,11 +19,18 @@ structured output whenever it can; the rule-based router (explicit cue
 words plus a small strict time parser, all UTC) backstops failures and
 serves offline mode. Model output is never trusted raw: every assignment
 is validated before anything is created.
+
+Plans may also carry read-only tool lookups (agent "tool"): chat can
+reach exactly the four harmless tools in TOOL_ARG_ALLOWLIST. Anything
+consequential (calendar writes, Gmail, bookings, payments) is
+unemittable — chat has no approval click, so the planner must not
+offer it.
 """
 
 import json
 import re
 from datetime import datetime, timedelta, timezone
+from uuid import uuid4
 
 import constitution
 import kernel
@@ -139,11 +146,12 @@ PLAN_SCHEMA = {
             "items": {
                 "type": "object",
                 "properties": {
-                    "agent": {"type": "string", "enum": ["reminder", "daily-organiser"]},
+                    "agent": {"type": "string", "enum": ["reminder", "daily-organiser", "tool"]},
                     "objective": {"type": "string"},
                     "deadline": {"type": "string"},
+                    "params": {"type": "string"},
                 },
-                "required": ["agent", "objective", "deadline"],
+                "required": ["agent", "objective", "deadline", "params"],
                 "additionalProperties": False,
             },
         },
@@ -165,17 +173,33 @@ PLAN_PROMPT = """You are the Saath Central Assistant's planner. Read the user's 
 Current UTC time: %%NOW%%. Every deadline you output must be ISO-8601 UTC (YYYY-MM-DDTHH:MM:SS+00:00), computed from that time.
 
 Assignment kinds:
-- {"agent": "reminder", "objective": "<what to do, no time words>", "deadline": "<ISO UTC>"} for dated nudges. Only emit when the message names an explicit time (today, tomorrow, a date, in N hours, and so on). Strip time words from the objective.
-- {"agent": "daily-organiser", "objective": "", "deadline": ""} for briefing requests (briefing, my day, what is due, summary of the day, and so on).
+- {"agent": "reminder", "objective": "<what to do, no time words>", "deadline": "<ISO UTC>", "params": ""} for dated nudges. Only emit when the message names an explicit time (today, tomorrow, a date, in N hours, and so on). Strip time words from the objective.
+- {"agent": "daily-organiser", "objective": "", "deadline": "", "params": ""} for briefing requests (briefing, my day, what is due, summary of the day, and so on).
+- {"agent": "tool", "objective": "<tool name>", "deadline": "", "params": "<JSON object string>"} for read-only lookups. The only chat tools are: maps_search_places with {"query", "near" (optional)}, maps_route with {"origin", "destination", "mode" (optional: driving, walking, bicycling, transit)}, calendar_read_day with {"date" as YYYY-MM-DD, "time_zone" (optional, default UTC)}, task_stats with {}. params holds a JSON object in a string ("{}" when the tool takes no arguments).
 
 Rules:
 - Split multi-part requests ("do X and Y") into one assignment each, in order.
 - Do not split one request joined by "and" ("milk and eggs" is one reminder).
 - A reminder without an explicit time is NOT an assignment: explain in notes what is missing.
+- A tool call with missing arguments is NOT an assignment: explain in notes what is missing.
+- Only the four chat tools above may appear as tool objectives. Anything consequential (bookings, messages, payments, calendar writes, cancellations) is NOT available via chat: explain in notes and point at the right screen.
 - Anything you do not understand goes in notes, never as a fake assignment.
 - Plain questions or chat with no actionable request: empty assignments, empty notes."""
 
 PLAN_PROMPT = PLAN_PROMPT + "\n\n" + constitution.CONSTITUTION_TAGLINE
+
+# Chat may only reach read-only tools (name -> allowed string args).
+# Kept static and tight on purpose: validation is a pure shape check
+# with no import-order surprises, and the manager re-verifies
+# registration plus harmlessness before anything executes.
+TOOL_ARG_ALLOWLIST = {
+    "maps_search_places": ("query", "near"),
+    "maps_route": ("origin", "destination", "mode"),
+    "calendar_read_day": ("date", "time_zone"),
+    "task_stats": (),
+}
+
+MAX_TOOL_ARG_LEN = 200
 
 
 def _validate_plan(raw) -> tuple:
@@ -212,6 +236,44 @@ def _validate_plan(raw) -> tuple:
             assignments.append({"agent": "reminder", "objective": objective, "deadline": deadline})
         elif agent == "daily-organiser":
             assignments.append({"agent": "daily-organiser"})
+        elif agent == "tool":
+            name = (item.get("objective") or "").strip()
+            allowed = TOOL_ARG_ALLOWLIST.get(name)
+            if allowed is None:
+                notes.append(f"tool {name!r} is not available via chat")
+                continue
+            raw_params = item.get("params", "{}")
+            if not isinstance(raw_params, str):
+                notes.append(f"tool {name} params must be a JSON object string")
+                continue
+            try:
+                params = json.loads(raw_params or "{}")
+            except ValueError:
+                notes.append(f"tool {name} params were not valid JSON")
+                continue
+            if not isinstance(params, dict):
+                notes.append(f"tool {name} params must be a JSON object")
+                continue
+            clean_params = {}
+            broken = ""
+            for key, value in params.items():
+                if key not in allowed:
+                    broken = f"tool {name} takes no argument {key!r}"
+                    break
+                if not isinstance(value, str):
+                    broken = f"tool {name} argument {key!r} must be text"
+                    break
+                if len(value) > MAX_TOOL_ARG_LEN:
+                    broken = f"tool {name} argument {key!r} is too long"
+                    break
+                if value.strip():
+                    clean_params[key] = value.strip()
+            if broken:
+                notes.append(broken)
+                continue
+            if name == "calendar_read_day" and not clean_params.get("time_zone"):
+                clean_params["time_zone"] = "UTC"
+            assignments.append({"agent": "tool", "objective": name, "params": clean_params})
         else:
             notes.append(f"unknown specialist {agent!r} ignored")
     return assignments, notes
@@ -312,13 +374,14 @@ def _verify_manager(db, *, user_id: int, outcome: dict):
     return None
 
 
-def _answer_directly(db, *, user_id: int, text: str, history=None, notes=None) -> dict:
+def _answer_directly(db, *, user_id: int, text: str, history=None, notes=None, trace_id: str = "") -> dict:
     """Handle one chat turn with no delegation: task row + model reply.
 
     `history` is earlier turns as model messages (oldest first); the
     current message is always last. Router `notes` (when any) ride
     along so the model can address what the router could not route
-    instead of answering blind.
+    instead of answering blind. `trace_id` ties this turn's evidence
+    to its delegation trail.
     """
     task = kernel.create_task(
         db,
@@ -348,8 +411,9 @@ def _answer_directly(db, *, user_id: int, text: str, history=None, notes=None) -
         )
         raise
     evidence = (
-        f"model={response.model} input_chars={response.input_chars} output_chars={response.output_chars} "
-        f"input_tokens={response.input_tokens} output_tokens={response.output_tokens}"
+        f"trace={trace_id} model={response.model} input_chars={response.input_chars} "
+        f"output_chars={response.output_chars} input_tokens={response.input_tokens} "
+        f"output_tokens={response.output_tokens}"
     )
     kernel.transition_task(
         db,
@@ -367,10 +431,11 @@ def _answer_directly(db, *, user_id: int, text: str, history=None, notes=None) -
         "input_chars": response.input_chars,
         "output_chars": response.output_chars,
         "children": [],
+        "trace_id": trace_id,
     }
 
 
-def _delegate(db, *, user_id: int, text: str, plan: dict) -> dict:
+def _delegate(db, *, user_id: int, text: str, plan: dict, trace_id: str = "") -> dict:
     """Handle one chat turn by delegating to the Daily Life manager."""
     task = kernel.create_task(
         db,
@@ -386,7 +451,7 @@ def _delegate(db, *, user_id: int, text: str, plan: dict) -> dict:
         # M4: one department exists, so every assignment goes to the Daily
         # Life manager as a single batch. Each future department adds one
         # handoff here, and Central combines the managers' verified reports.
-        outcome = manager.handle_department(db, user_id=user_id, assignments=plan["assignments"])
+        outcome = manager.handle_department(db, user_id=user_id, assignments=plan["assignments"], trace_id=trace_id)
     except Exception as exc:
         kernel.transition_task(
             db, user_id=user_id, task_id=task.id, to_status="FAILED", note=f"manager error: {exc}"
@@ -408,7 +473,7 @@ def _delegate(db, *, user_id: int, text: str, plan: dict) -> dict:
         reply += "\n" + "\n".join(f"Note: {note}" for note in plan["notes"])
     plan_input_tokens, plan_output_tokens = plan["plan_tokens"]
     evidence = (
-        f"manager={outcome['task_id']} manager_ok={problem is None} "
+        f"trace={trace_id} manager={outcome['task_id']} manager_ok={problem is None} "
         f"assignments={len(plan['assignments'])} succeeded={outcome['succeeded']} failed={outcome['failed']} "
         f"children={[outcome['task_id']]} input_chars={len(text)} output_chars={len(reply)} "
         f"planned_by={plan['planned_by']} plan_input_tokens={plan_input_tokens} plan_output_tokens={plan_output_tokens}"
@@ -429,6 +494,7 @@ def _delegate(db, *, user_id: int, text: str, plan: dict) -> dict:
         "input_chars": len(text),
         "output_chars": len(reply),
         "children": [outcome["task_id"]],
+        "trace_id": trace_id,
     }
 
 
@@ -439,20 +505,22 @@ def chat(db, *, user_id: int, message: str, thread_id=None) -> dict:
     planner and the reply, and both sides are stored (replies trimmed to
     2000 characters in the thread; their full text lives on the task).
     Returns task_id, reply, model, input_chars, output_chars, children,
-    and thread_id. Raises kernel.TaskRuleError if the message is empty.
+    trace_id, and thread_id. Raises kernel.TaskRuleError if the message
+    is empty.
     """
     text = (message or "").strip()
     if not text:
         raise kernel.TaskRuleError("message must not be empty")
+    trace_id = uuid4().hex[:12]
     thread_messages = []
     if thread_id is not None:
         thread_messages = threads.get_thread(db, user_id=user_id, thread_id=thread_id)["messages"]
     history = threads.context_messages(thread_messages)
     plan = _route(text, now=datetime.now(timezone.utc), context=threads.context_text(thread_messages))
     if not plan["assignments"]:
-        result = _answer_directly(db, user_id=user_id, text=text, history=history, notes=plan["notes"])
+        result = _answer_directly(db, user_id=user_id, text=text, history=history, notes=plan["notes"], trace_id=trace_id)
     else:
-        result = _delegate(db, user_id=user_id, text=text, plan=plan)
+        result = _delegate(db, user_id=user_id, text=text, plan=plan, trace_id=trace_id)
     if thread_id is not None:
         threads.append_message(db, user_id=user_id, thread_id=thread_id, role="user", text=text[:2000], task_id=result["task_id"])
         threads.append_message(

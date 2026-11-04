@@ -91,24 +91,42 @@ class StubProvider(ModelClient):
         return ModelResponse(text=text, model=self.name, input_chars=input_chars, output_chars=len(text))
 
 
+def _input_item(role: str, text: str) -> dict:
+    """One Responses input message (typed blocks per the API docs).
+
+    User turns carry `input_text`; replayed assistant turns carry
+    `output_text`. Anything that is not clearly the assistant's is
+    treated as the user's — the model must never mistake our history
+    replay for its own new output.
+    """
+    if role == "assistant":
+        return {"type": "message", "role": "assistant", "content": [{"type": "output_text", "text": text}]}
+    return {"type": "message", "role": "user", "content": [{"type": "input_text", "text": text}]}
+
+
 def _build_responses_body(
     *, model: str, system: str, messages: list, response_format=None, max_output_tokens=None
 ) -> dict:
     """Map one generate() call onto a Responses API request body.
 
     Per the quickstart: top-level `instructions` carries the system
-    prompt, `input` carries the user text. Multi-turn input joins with
-    blank lines (our callers send single turns today). A format becomes
+    prompt, `input` carries the user text. A lone user turn stays a
+    plain string (every planner-style caller sends exactly one). Real
+    multi-turn history becomes a typed message list so the model sees
+    who said what instead of one flattened blob. A format becomes
     `text.format` (the Responses structured-output parameter, not the
     Chat Completions `response_format` name).
     """
-    texts = []
+    turns = []
     for entry in messages:
         if isinstance(entry, dict):
-            texts.append(entry.get("content", ""))
+            turns.append((entry.get("role", "user"), entry.get("content", "")))
         else:
-            texts.append(str(entry))
-    body = {"model": model, "input": "\n\n".join(texts)}
+            turns.append(("user", str(entry)))
+    if len(turns) == 1 and turns[0][0] == "user":
+        body = {"model": model, "input": turns[0][1]}
+    else:
+        body = {"model": model, "input": [_input_item(role, text) for role, text in turns]}
     if (system or "").strip():
         body["instructions"] = system
     if response_format is not None:

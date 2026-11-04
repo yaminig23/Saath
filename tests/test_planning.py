@@ -130,5 +130,68 @@ class PlanningTest(unittest.TestCase):
         self.assertEqual(plan["planned_by"], "rules")
 
 
+class ToolPlanTest(unittest.TestCase):
+    """Chat tool lookups: harmless tools accepted, everything else dropped."""
+
+    def _plan(self, item):
+        return central._validate_plan({"assignments": [item], "notes": []})
+
+    def test_valid_places_lookup_accepted(self):
+        item = {
+            "agent": "tool",
+            "objective": "maps_search_places",
+            "deadline": "",
+            "params": '{"query": "dentist", "near": "Andheri West"}',
+        }
+        assignments, notes = self._plan(item)
+        self.assertEqual(
+            assignments,
+            [{"agent": "tool", "objective": "maps_search_places", "params": {"query": "dentist", "near": "Andheri West"}}],
+        )
+        self.assertEqual(notes, [])
+
+    def test_calendar_day_defaults_timezone_to_utc(self):
+        item = {
+            "agent": "tool",
+            "objective": "calendar_read_day",
+            "deadline": "",
+            "params": '{"date": "2026-11-07"}',
+        }
+        assignments, _ = self._plan(item)
+        self.assertEqual(assignments[0]["params"], {"date": "2026-11-07", "time_zone": "UTC"})
+
+    def test_consequential_tools_dropped(self):
+        for name in ("calendar_add_event", "gmail_send", "export_calendar", "demo_book_cab"):
+            item = {"agent": "tool", "objective": name, "deadline": "", "params": "{}"}
+            assignments, notes = self._plan(item)
+            self.assertEqual(assignments, [])
+            self.assertTrue(any("not available via chat" in note for note in notes), name)
+
+    def test_unknown_tool_dropped(self):
+        item = {"agent": "tool", "objective": "teleport", "deadline": "", "params": "{}"}
+        assignments, notes = self._plan(item)
+        self.assertEqual(assignments, [])
+        self.assertTrue(any("not available via chat" in note for note in notes))
+
+    def test_bad_params_dropped(self):
+        bad = [
+            '{"query": "x", "smuggle": "y"}',
+            '{"query": 42}',
+            '{"query": "' + "x" * 201 + '"}',
+            "not json",
+            '["an", "array"]',
+        ]
+        for params in bad:
+            item = {"agent": "tool", "objective": "maps_search_places", "deadline": "", "params": params}
+            assignments, notes = self._plan(item)
+            self.assertEqual(assignments, [], params)
+            self.assertEqual(len(notes), 1, params)
+
+    def test_missing_params_tolerated(self):
+        item = {"agent": "tool", "objective": "task_stats", "deadline": ""}
+        assignments, _ = self._plan(item)
+        self.assertEqual(assignments, [{"agent": "tool", "objective": "task_stats", "params": {}}])
+
+
 if __name__ == "__main__":
     unittest.main()

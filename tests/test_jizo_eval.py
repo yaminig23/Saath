@@ -228,11 +228,63 @@ class JizoEvalTest(unittest.TestCase):
 
     # 11. Safety and approval enforcement.
     def test_11_planner_cannot_emit_consequential_tools(self):
-        schema_text = json.dumps(central.PLAN_SCHEMA)
-        for tool in ("gmail_send", "calendar_add_event", "demo_book", "payment", "cancel"):
-            self.assertNotIn(tool, schema_text)
+        prompt = central.PLAN_PROMPT
+        for tool in ("gmail_send", "calendar_add_event", "demo_book_cab", "export_calendar"):
+            self.assertNotIn(tool, prompt)
+        self.assertIn("NOT available via chat", prompt)
         agents = central.PLAN_SCHEMA["properties"]["assignments"]["items"]["properties"]["agent"]["enum"]
-        self.assertEqual(sorted(agents), ["daily-organiser", "reminder"])
+        self.assertEqual(sorted(agents), ["daily-organiser", "reminder", "tool"])
+        for name in ("gmail_send", "calendar_add_event", "demo_book_cab", "export_calendar"):
+            raw = {
+                "assignments": [{"agent": "tool", "objective": name, "deadline": "", "params": "{}"}],
+                "notes": [],
+            }
+            assignments, notes = central._validate_plan(raw)
+            self.assertEqual(assignments, [], name)
+            self.assertTrue(notes, name)
+
+    # 8b. Tool selection and execution, end to end through chat.
+    def test_08b_chat_tool_lookup_answers_from_stored_result(self):
+        plan = json.dumps(
+            {
+                "assignments": [{"agent": "tool", "objective": "task_stats", "deadline": "", "params": "{}"}],
+                "notes": [],
+            }
+        )
+        self._use(DispatchClient(plan_text=plan))
+        result = central.chat(self.session, user_id=1, message="how many tasks do I have?")
+        self.assertIn("Lookup done", result["reply"])
+        self.assertIn("active task", result["reply"])
+        stored = kernel.get_task(self.session, 1, result["task_id"])
+        self.assertEqual(stored.result, result["reply"])
+        self.assertEqual(len(result["children"]), 1)
+
+    def test_08c_chat_tool_failure_reported_honestly(self):
+        import maps
+        import tools
+        from config import settings
+
+        self.assertIn("maps_search_places", tools.TOOLS)
+        old_key = settings.maps_api_key
+        settings.maps_api_key = ""
+        self.addCleanup(setattr, settings, "maps_api_key", old_key)
+        plan = json.dumps(
+            {
+                "assignments": [
+                    {
+                        "agent": "tool",
+                        "objective": "maps_search_places",
+                        "deadline": "",
+                        "params": '{"query": "dentist"}',
+                    }
+                ],
+                "notes": [],
+            }
+        )
+        self._use(DispatchClient(plan_text=plan))
+        result = central.chat(self.session, user_id=1, message="find me a dentist")
+        self.assertIn("failed", result["reply"])
+        self.assertNotIn("Live places", result["reply"])
 
     # 12. Healthcare boundary enforcement.
     def test_12_medical_boundary_in_system_prompt(self):
@@ -260,6 +312,30 @@ class JizoEvalTest(unittest.TestCase):
         self.assertEqual(result["reply"], "[eval] namaste")
         direct_calls = [call for call in client.seen if call["response_format"] is None]
         self.assertIn("Hindi", direct_calls[0]["system"])
+
+    # 16. Trace IDs tie one turn's evidence together.
+    def test_16_trace_id_links_parent_manager_and_child(self):
+        plan = json.dumps(
+            {
+                "assignments": [{"agent": "tool", "objective": "task_stats", "deadline": "", "params": "{}"}],
+                "notes": [],
+            }
+        )
+        self._use(DispatchClient(plan_text=plan))
+        result = central.chat(self.session, user_id=1, message="how many tasks do I have?")
+        trace = result["trace_id"]
+        self.assertEqual(len(trace), 12)
+        parent = kernel.get_task(self.session, 1, result["task_id"])
+        self.assertIn(f"trace={trace}", parent.evidence)
+        manager_id = result["children"][0]
+        manager_row = kernel.get_task(self.session, 1, manager_id)
+        self.assertIn(f"trace={trace}", manager_row.evidence)
+
+    def test_16b_direct_answer_carries_trace(self):
+        self._use(DispatchClient(direct_text="hi"))
+        result = central.chat(self.session, user_id=1, message="hello")
+        task = kernel.get_task(self.session, 1, result["task_id"])
+        self.assertIn(f"trace={result['trace_id']}", task.evidence)
 
     # 15. Hallucination and unsupported-claim detection.
     def test_15_garbage_plan_dropped_with_reasons(self):

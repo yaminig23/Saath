@@ -61,8 +61,29 @@ class ModelMappingTest(unittest.TestCase):
             system="sys",
             messages=[{"role": "user", "content": "one"}, {"role": "assistant", "content": "two"}],
         )
-        self.assertEqual(body["input"], "one\n\ntwo")
+        self.assertEqual(
+            body["input"],
+            [
+                {"type": "message", "role": "user", "content": [{"type": "input_text", "text": "one"}]},
+                {"type": "message", "role": "assistant", "content": [{"type": "output_text", "text": "two"}]},
+            ],
+        )
         self.assertEqual(body["instructions"], "sys")
+
+    def test_multi_turn_order_and_roles_preserved(self):
+        body = _build_responses_body(
+            model="m",
+            system="s",
+            messages=[
+                {"role": "user", "content": "a"},
+                {"role": "assistant", "content": "b"},
+                {"role": "user", "content": "c"},
+            ],
+        )
+        roles = [item["role"] for item in body["input"]]
+        texts = [item["content"][0]["text"] for item in body["input"]]
+        self.assertEqual(roles, ["user", "assistant", "user"])
+        self.assertEqual(texts, ["a", "b", "c"])
 
     def test_parses_response_text_and_usage(self):
         text, input_tokens, output_tokens = _parse_responses_body(SAMPLE_RESPONSE)

@@ -26,6 +26,7 @@ import manager
 import models
 import organiser
 import reminders
+import tools
 from config import settings
 
 
@@ -289,6 +290,110 @@ class ManagerVerifyTest(unittest.TestCase):
             "missing",
             manager._verify_result(self.session, user_id=1, assignment=assignment, result={"task_id": 9999}),
         )
+
+
+class ManagerToolTest(unittest.TestCase):
+    """Tool lookups run as verified child tasks; refusals never execute."""
+
+    def setUp(self):
+        handle, self.db_path = tempfile.mkstemp(suffix=".db")
+        os.close(handle)
+        self.engine = create_engine(f"sqlite:///{self.db_path}", connect_args={"check_same_thread": False})
+        models.Base.metadata.create_all(self.engine)
+        self.session = sessionmaker(bind=self.engine)()
+
+    def tearDown(self):
+        for name in ("eval_lookup", "eval_boom", "eval_gated"):
+            tools.TOOLS.pop(name, None)
+        self.session.close()
+        self.engine.dispose()
+        os.remove(self.db_path)
+
+    def test_harmless_tool_runs_and_verifies(self):
+        tools.register("eval_lookup", consequential=False, handler=lambda db, user_id, task, args: {"answer": 42})
+        outcome = manager.handle_department(
+            self.session, user_id=1, assignments=[{"agent": "tool", "objective": "eval_lookup", "params": {}}]
+        )
+        self.assertTrue(outcome["ok"])
+        self.assertIn("Lookup done", outcome["reply"])
+        self.assertIn("42", outcome["reply"])
+        child = kernel.get_task(self.session, 1, outcome["children"][0])
+        self.assertEqual(child.status, "COMPLETED")
+        self.assertEqual(child.agent, "tool-runner")
+
+    def test_failing_tool_reported_with_failure_row(self):
+        def boom(db, *, user_id, task, args):
+            raise RuntimeError("lookup exploded")
+
+        tools.register("eval_boom", consequential=False, handler=boom)
+        outcome = manager.handle_department(
+            self.session, user_id=1, assignments=[{"agent": "tool", "objective": "eval_boom", "params": {}}]
+        )
+        self.assertFalse(outcome["ok"])
+        self.assertIn("failed", outcome["reply"])
+        self.assertIn("lookup exploded", outcome["reply"])
+        child = kernel.get_task(self.session, 1, outcome["children"][0])
+        self.assertEqual(child.status, "FAILED")
+        self.assertEqual(len(tools.list_failures(self.session, user_id=1)), 1)
+
+    def test_consequential_tool_refused_without_running(self):
+        def gated(db, *, user_id, task, args):
+            raise AssertionError("must never execute")
+
+        tools.register("eval_gated", consequential=True, handler=gated)
+        outcome = manager.handle_department(
+            self.session, user_id=1, assignments=[{"agent": "tool", "objective": "eval_gated", "params": {}}]
+        )
+        self.assertFalse(outcome["ok"])
+        self.assertIn("approval", outcome["reply"])
+        self.assertEqual(outcome["children"], [])
+
+    def test_unknown_tool_refused(self):
+        outcome = manager.handle_department(
+            self.session, user_id=1, assignments=[{"agent": "tool", "objective": "nope", "params": {}}]
+        )
+        self.assertFalse(outcome["ok"])
+        self.assertIn("not available", outcome["reply"])
+
+    def test_places_summary_lists_live_results(self):
+        result = {
+            "query": "dentist near Andheri",
+            "live": True,
+            "places": [
+                {"name": "Smile Care", "address": "Main Rd", "rating": 4.2, "open_now": True},
+                {"name": "Tooth Hub", "address": "", "rating": None, "open_now": False},
+            ],
+        }
+        summary = manager._summarise_tool("maps_search_places", result)
+        self.assertIn("Live places", summary)
+        self.assertIn("Smile Care — Main Rd (rated 4.2, open now)", summary)
+        self.assertIn("Tooth Hub (closed now)", summary)
+
+    def test_route_and_day_and_stats_summaries(self):
+        route = manager._summarise_tool(
+            "maps_route",
+            {"origin": "A", "destination": "B", "mode": "driving", "distance": "2.6 km",
+             "duration": "9 mins", "steps": ["Head north"]},
+        )
+        self.assertIn("A to B: 2.6 km 9 mins by driving (live Google data).", route)
+        self.assertIn("1. Head north", route)
+        day = manager._summarise_tool(
+            "calendar_read_day",
+            {"date": "2026-11-07", "time_zone": "UTC",
+             "events": [{"title": "Dentist", "start": "2026-11-07T09:00:00+00:00"}]},
+        )
+        self.assertIn("1 event on 2026-11-07 (UTC):", day)
+        self.assertIn("09:00 — Dentist", day)
+        empty = manager._summarise_tool("calendar_read_day", {"date": "2026-11-08", "time_zone": "UTC", "events": []})
+        self.assertIn("the day is free", empty)
+        stats = manager._summarise_tool("task_stats", {"active": 1, "completed": 2, "failed": 0})
+        self.assertIn("1 active task, 2 completed tasks, 0 failed tasks", stats)
+
+    def test_unreadable_result_fails_loudly(self):
+        with self.assertRaises(ValueError):
+            manager._summarise_tool("maps_search_places", {"places": "nope"})
+        with self.assertRaises(ValueError):
+            manager._summarise_tool("task_stats", {"active": "many"})
 
 
 if __name__ == "__main__":
