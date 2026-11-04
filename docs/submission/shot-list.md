@@ -20,7 +20,9 @@ toolbar). Save under `docs/submission/shots/`.
 | 13 | Bookings | REAL HANDOFF panel (Uber, route filled in) |
 | 14 | Flights tab | Offer list + test-mode banner + traveler form |
 | 15 | Home + sidebar | Welcome overlay (fresh profile) + left panel |
-| 16 | Home dark | Dark mode with sidebar |
+| 16 | Home dark | Dark mode with sidebar (ALREADY HAVE: `restyle/dash-dark-desktop.png`) |
+| 17b | Home light | Light mode (ALREADY HAVE: `restyle/dash-light-desktop.png`) |
+| 17c | Home mobile dark | Stacked panels (ALREADY HAVE: `restyle/dash-dark-mobile.png`) |
 | 17 | Trusted People | Contact list + Tell flow (More → Trusted People) |
 | 18 | Approval popup | Modal over Home + spoken approval |
 

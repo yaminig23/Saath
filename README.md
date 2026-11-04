@@ -3,6 +3,57 @@
 The AI brain of Saath: one Central Assistant coordinating specialist agents
 to help people with everyday life.
 
+## Hackathon submission (judges start here)
+
+**What existed before vs during the event:** nothing in this repo
+predates the event except standard open-source dependencies (below).
+Every Saath feature -- agent hierarchy, memory, approvals, voice UI,
+video studio, integrations -- was built for this hackathon.
+
+**Run it (no outside accounts needed):**
+
+```powershell
+git clone <this-repo> Saath
+cd Saath
+python -m venv .venv
+.venv\Scripts\Activate.ps1
+pip install -r requirements.txt
+copy .env.example .env
+# add your Meta Model API key: META_API_KEY=...  (never commit .env)
+.venv\Scripts\python.exe -m uvicorn main:app --host 127.0.0.1 --port 8091
+```
+
+Open http://127.0.0.1:8091/web/, register an account, and use the app.
+Without a key, Saath runs in honest keyless mode: the offline stub
+answers (marked `[stub]`) while tasks, audit, approvals, and demo
+bookings keep working for real. `python -m unittest` (278 tests) and,
+in `frontend/`, `npm run test:voice` (53 voice checks) verify the
+checkout. The committed `web/` build matches `frontend/` sources --
+rebuild with `npm run build` after changing them.
+
+**Meta models used (all via Meta Model API, `https://api.meta.ai/v1`):**
+
+| Model | Where it runs | What it does in Saath |
+|---|---|---|
+| `muse-spark-1.3` (`/responses`) | Meta Model API | Chat understanding, router planning, delegation plans, lesson storyboards, photo understanding |
+| `muse-image-1.0` (`/images/generations`) | Meta Model API | Per-scene keyframe illustrations for video lessons |
+
+No Contributor-tier IDs (refused at startup), no fine-tuning, no
+training on user data. API key lives only in backend `.env`.
+
+**Non-Meta components (labeled):** React/Vite/Tailwind UI;
+FastAPI/SQLAlchemy/SQLite backend; FFmpeg (local video assembly);
+OS + browser speech voices (all TTS/STT -- no audio uploaded by Saath);
+Open-Meteo (keyless weather); Google Calendar/Gmail/Maps, Duffel
+flights, Runway footage -- each optional, keyed, and honestly reported
+as missing until configured. Sample volunteer/community data is
+labeled "sample"; demo bookings carry DEMO-XXXX references.
+
+**Recorded evidence:** `docs/submission/shots/` (dashboard dark/light/
+mobile, login flow), `docs/submission/demo-script.md` (3-min video
+plan), `docs/submission/architecture.md`, and the demo video link in
+the submission form show live Meta model calls end to end.
+
 ## Open the app
 
 ```powershell
