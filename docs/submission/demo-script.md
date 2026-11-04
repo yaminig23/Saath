@@ -21,6 +21,9 @@ http://127.0.0.1:8091/web/ logged in as `demostudio`.
 > invites — every one clearly marked DEMO, nothing faked as real."
 - Book a cab; point at the DEMO-XXXX reference.
 - Show the approval prompt; approve; show the stored booking.
+- NEW beats: "Book this ride for real on Uber" (REAL HANDOFF panel);
+  Flights tab — search BOM→DEL, pick an offer, show the test-mode
+  banner, book through Approvals to a real test booking reference.
 
 ## 1:15–1:45 — Visual Tutor video, generated locally (Learn → Videos)
 > "And Saath teaches. This kettle tutorial was planned by Muse,

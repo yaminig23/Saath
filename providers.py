@@ -279,6 +279,40 @@ class MapsProviderStatus(Provider):
         return {"ok": True, "detail": f"live places work ({', '.join(names) or 'no results'}; one request spent)"}
 
 
+class DuffelProviderStatus(Provider):
+    """Duffel flights: test token for the real search-to-booking loop."""
+
+    name = "duffel"
+    title = "Duffel flights"
+    capabilities = ["search offers", "book (test)"]
+
+    def status(self) -> dict:
+        if not settings.duffel_api_key.strip():
+            return {
+                "name": self.name, "title": self.title, "capabilities": self.capabilities,
+                "status": "missing",
+                "detail": "needs DUFFEL_API_KEY in .env (free test token from duffel.com)",
+            }
+        mode = "test" if settings.duffel_api_key.strip().startswith("duffel_test_") else "LIVE"
+        return {
+            "name": self.name, "title": self.title, "capabilities": self.capabilities,
+            "status": "available",
+            "detail": f"key present ({mode} mode); verified by the Check button",
+        }
+
+    def check(self) -> dict:
+        # Local import: duffel never imports providers, so no cycle.
+        import duffel
+
+        if not settings.duffel_api_key.strip().startswith("duffel_test_"):
+            return {"ok": False, "detail": "check runs on test keys only (live searches can bill)"}
+        try:
+            found = duffel.search_flights(origin="BOM", destination="DEL", date="2026-12-15")
+        except Exception as exc:
+            return {"ok": False, "detail": f"live check failed: {exc}"}
+        return {"ok": True, "detail": f"live search works ({len(found['offers'])} test offers)"}
+
+
 class GmailProviderStatus(Provider):
     """Gmail: app keys plus each user's own send-only OAuth link."""
 
@@ -359,6 +393,7 @@ REGISTRY: list = [
     CalendarProviderStatus(),
     demo_bookings.DemoBookingsProvider(),
     MapsProviderStatus(),
+    DuffelProviderStatus(),
     GmailProviderStatus(),
     VideoProviderStatus(),
     MissingProvider("tts", "Voice synthesis", ["narration"], "needs a TTS provider key (Meta offers transcription only; Runway has a speech endpoint for later)"),

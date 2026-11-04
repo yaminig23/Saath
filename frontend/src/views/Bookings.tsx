@@ -45,7 +45,48 @@ interface BookingsProps {
   onOpenTask: OpenTask;
 }
 
-type Tab = "cab" | "appointment" | "service" | "party";
+interface Handoff {
+  provider: string;
+  url: string;
+  label: string;
+  note: string;
+}
+
+type Tab = "cab" | "appointment" | "service" | "party" | "flights";
+
+interface FlightSlice {
+  from: string;
+  to: string;
+  departs: string;
+  arrives: string;
+  stops: number;
+  flights: string[];
+}
+
+interface FlightOffer {
+  id: string;
+  total: string;
+  expires: string;
+  slices: FlightSlice[];
+}
+
+interface FlightSearch {
+  request_id: string;
+  test_mode: boolean;
+  test_note?: string;
+  offers: FlightOffer[];
+  passengers: { id: string }[];
+}
+
+interface TravelerForm {
+  title: string;
+  gender: string;
+  given: string;
+  family: string;
+  born: string;
+  email: string;
+  phone: string;
+}
 
 function nextWeek(): string {
   const d = new Date();
@@ -156,6 +197,26 @@ export default function Bookings({ notify, navigate, onOpenTask }: BookingsProps
   const [liveRoute, setLiveRoute] = useState<LiveRoute | null>(null);
   const [livePlaces, setLivePlaces] = useState<LivePlaces | null>(null);
   const [liveBusy, setLiveBusy] = useState(false);
+  const [handoff, setHandoff] = useState<Handoff | null>(null);
+  const [handoffBusy, setHandoffBusy] = useState(false);
+  const [foodQuery, setFoodQuery] = useState("biryani");
+  const [foodArea, setFoodArea] = useState("");
+  const [flOrigin, setFlOrigin] = useState("BOM");
+  const [flDest, setFlDest] = useState("DEL");
+  const [flDate, setFlDate] = useState(nextWeek());
+  const [flAdults, setFlAdults] = useState("1");
+  const [flSearch, setFlSearch] = useState<FlightSearch | null>(null);
+  const [flPicked, setFlPicked] = useState<FlightOffer | null>(null);
+  const [flTravelers, setFlTravelers] = useState<TravelerForm[]>([]);
+
+  function patchTraveler(index: number, patch: Partial<TravelerForm>) {
+    setFlTravelers((prev) => prev.map((t, i) => (i === index ? { ...t, ...patch } : t)));
+  }
+
+  function pickOffer(offer: FlightOffer) {
+    setFlPicked(offer);
+    setFlTravelers((flSearch?.passengers ?? []).map(() => ({ title: "mr", gender: "m", given: "", family: "", born: "", email: "", phone: "" })));
+  }
 
   async function loadBookings() {
     setBookings(await call<DemoBookingRow[]>("GET", "/demo/bookings"));
@@ -177,6 +238,20 @@ export default function Bookings({ notify, navigate, onOpenTask }: BookingsProps
     setSelectedVenue("");
     setLiveRoute(null);
     setLivePlaces(null);
+    setHandoff(null);
+    setFlSearch(null);
+    setFlPicked(null);
+  }
+
+  async function realHandoff(query: string) {
+    setHandoffBusy(true);
+    try {
+      setHandoff(await call<Handoff>("GET", "/demo/handoff?" + query));
+    } catch (err) {
+      notify(err instanceof Error ? err.message : "Handoff failed.", true);
+    } finally {
+      setHandoffBusy(false);
+    }
   }
 
   async function checkRoute() {
@@ -232,6 +307,58 @@ export default function Bookings({ notify, navigate, onOpenTask }: BookingsProps
       notify(demoProblem(err, "Search failed."), true);
     } finally {
       setBusy(false);
+    }
+  }
+
+  async function searchFlights(event: FormEvent) {
+    event.preventDefault();
+    setBusy(true);
+    try {
+      const data = await call<FlightSearch>(
+        "GET",
+        `/travel/flights/search?origin=${encodeURIComponent(flOrigin.trim())}&destination=${encodeURIComponent(flDest.trim())}&date=${encodeURIComponent(flDate.trim())}&adults=${encodeURIComponent(flAdults.trim())}`
+      );
+      setFlSearch(data);
+      setFlPicked(null);
+    } catch (err) {
+      notify(err instanceof Error ? err.message : "Flight search failed.", true);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function bookFlight() {
+    if (!flPicked || !flSearch) return;
+    setBookingBusy(flPicked.id);
+    try {
+      const taskId = await startTask(`Flight booking: ${flPicked.total}`);
+      const out = await call<ToolResult>("POST", "/tasks/" + taskId + "/tools", {
+        tool: "duffel_book_flight",
+        args: {
+          offer_id: flPicked.id,
+          travelers: flTravelers.map((t) => ({
+            title: t.title,
+            gender: t.gender,
+            given_name: t.given.trim(),
+            family_name: t.family.trim(),
+            born_on: t.born.trim(),
+            email: t.email.trim(),
+            phone_number: t.phone.trim(),
+          })),
+          passenger_ids: flSearch.passengers.map((p) => p.id),
+        },
+      });
+      if (out.status === "awaiting_approval") {
+        setAwaiting(taskId);
+        notify("Sent to Approvals — Saath never books without your yes.");
+      } else {
+        notify("Booking completed.");
+      }
+      await loadBookings();
+    } catch (err) {
+      notify(err instanceof Error ? err.message : "Booking failed.", true);
+    } finally {
+      setBookingBusy(null);
     }
   }
 
@@ -358,6 +485,7 @@ export default function Bookings({ notify, navigate, onOpenTask }: BookingsProps
     { key: "appointment", label: "Visits" },
     { key: "service", label: "Services" },
     { key: "party", label: "Party" },
+    { key: "flights", label: "Flights" },
   ];
   const showMapsNote = options.some((o) => o.maps_note);
 
@@ -379,7 +507,7 @@ export default function Bookings({ notify, navigate, onOpenTask }: BookingsProps
             </button>
           ))}
         </div>
-        <form onSubmit={tab === "party" ? hostParty : search} className="mt-2 flex flex-col gap-2">
+        <form onSubmit={tab === "party" ? hostParty : tab === "flights" ? searchFlights : search} className="mt-2 flex flex-col gap-2">
           {tab === "cab" && (
             <div className="flex flex-wrap gap-2">
               <label className="grow text-sm font-medium">
@@ -446,6 +574,26 @@ export default function Bookings({ notify, navigate, onOpenTask }: BookingsProps
               </label>
             </>
           )}
+          {tab === "flights" && (
+            <div className="flex flex-wrap gap-2">
+              <label className="grow text-sm font-medium">
+                From (airport code)
+                <input className={input + " mt-1 w-full uppercase"} value={flOrigin} onChange={(e) => setFlOrigin(e.target.value)} required />
+              </label>
+              <label className="grow text-sm font-medium">
+                To (airport code)
+                <input className={input + " mt-1 w-full uppercase"} value={flDest} onChange={(e) => setFlDest(e.target.value)} required />
+              </label>
+              <label className="grow text-sm font-medium">
+                Date
+                <input className={input + " mt-1 w-full"} value={flDate} onChange={(e) => setFlDate(e.target.value)} required />
+              </label>
+              <label className="text-sm font-medium">
+                Adults
+                <input className={input + " mt-1 w-full"} value={flAdults} onChange={(e) => setFlAdults(e.target.value)} required />
+              </label>
+            </div>
+          )}
           {tab === "party" ? (
             <div className="flex flex-wrap gap-2">
               <button type="button" onClick={search} disabled={busy} className="min-h-12 grow rounded-xl border border-stone-300 bg-white px-4 font-medium disabled:opacity-50">
@@ -457,7 +605,7 @@ export default function Bookings({ notify, navigate, onOpenTask }: BookingsProps
             </div>
           ) : (
             <button type="submit" disabled={busy} className="min-h-12 rounded-xl bg-teal-800 px-5 font-medium text-white disabled:opacity-50">
-              {busy ? "Searching…" : "Search"}
+              {busy ? "Searching…" : tab === "flights" ? "Search real flights" : "Search"}
             </button>
           )}
         </form>
@@ -496,7 +644,157 @@ export default function Bookings({ notify, navigate, onOpenTask }: BookingsProps
           )}
         </div>
         <p className="mt-1 text-xs text-stone-500">Live Google data, not demo samples — each check bills a fraction of a cent.</p>
+        {(tab === "cab" || (tab === "appointment" && (service === "dentist" || service === "doctor"))) && (
+          <div className="mt-2">
+            <button
+              type="button"
+              onClick={() =>
+                realHandoff(
+                  tab === "cab"
+                    ? `kind=cab&from_place=${encodeURIComponent(fromPlace.trim())}&to_place=${encodeURIComponent(toPlace.trim())}`
+                    : `kind=appointment&service=${encodeURIComponent(service)}&area=${encodeURIComponent(area.trim())}`
+                ).catch(() => undefined)
+              }
+              disabled={handoffBusy}
+              className="min-h-12 w-full rounded-xl bg-teal-800 px-4 font-medium text-white disabled:opacity-50"
+            >
+              {handoffBusy ? "Opening…" : tab === "cab" ? "Book this ride for real on Uber" : "Book for real on Practo"}
+            </button>
+            <p className="mt-1 text-xs text-stone-500">Real handoff — the booking completes on the provider&apos;s site, not in Saath.</p>
+          </div>
+        )}
       </section>
+
+      <section className="rounded-2xl border border-stone-200 bg-white p-4 shadow-sm">
+        <h3 className="text-base font-semibold">Eat out for real</h3>
+        <div className="mt-2 flex flex-wrap gap-2">
+          <label className="grow text-sm font-medium">
+            Craving
+            <input className={input + " mt-1 w-full"} value={foodQuery} onChange={(e) => setFoodQuery(e.target.value)} />
+          </label>
+          <label className="grow text-sm font-medium">
+            Area (optional)
+            <input className={input + " mt-1 w-full"} placeholder="e.g. Andheri" value={foodArea} onChange={(e) => setFoodArea(e.target.value)} />
+          </label>
+        </div>
+        <button
+          type="button"
+          onClick={() =>
+            realHandoff(`kind=food&q=${encodeURIComponent(foodQuery.trim())}&area=${encodeURIComponent(foodArea.trim())}`).catch(() => undefined)
+          }
+          disabled={handoffBusy}
+          className="mt-2 min-h-12 w-full rounded-xl bg-teal-800 px-4 font-medium text-white disabled:opacity-50"
+        >
+          {handoffBusy ? "Opening…" : "Find it for real on Zomato"}
+        </button>
+      </section>
+
+      {handoff && (
+        <section className="rounded-2xl border border-teal-800 bg-teal-50 p-4 shadow-sm">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="rounded-full bg-teal-800 px-2.5 py-0.5 text-xs font-semibold text-white">REAL HANDOFF</span>
+            <h4 className="text-base font-semibold">{handoff.provider}</h4>
+          </div>
+          <p className="mt-1 text-[15px]">{handoff.label}</p>
+          <a
+            href={handoff.url}
+            target="_blank"
+            rel="noreferrer"
+            className="mt-2 inline-block min-h-12 rounded-xl bg-teal-800 px-5 py-3 font-medium text-white"
+          >
+            Open {handoff.provider}
+          </a>
+          <p className="mt-1 text-xs text-stone-600">{handoff.note}</p>
+        </section>
+      )}
+
+      {tab === "flights" && flSearch && (
+        <section className="flex flex-col gap-2">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="rounded-full bg-teal-800 px-2.5 py-0.5 text-xs font-semibold text-white">REAL FLIGHTS</span>
+            <h4 className="text-base font-semibold">{flSearch.offers.length} offers</h4>
+          </div>
+          {flSearch.test_note && <p className="text-sm text-amber-900">Test mode — {flSearch.test_note}</p>}
+          {flSearch.offers.length === 0 && <p className="text-sm text-stone-500">No offers for that route and date.</p>}
+          {flSearch.offers.map((offer) => (
+            <article key={offer.id} className="rounded-2xl border border-stone-200 bg-white p-4 shadow-sm">
+              <p className="text-[15px] font-semibold">{offer.total}</p>
+              {offer.slices.map((sl, i) => (
+                <p key={i} className="text-sm text-stone-600">
+                  {sl.from} → {sl.to} · {sl.departs.slice(11, 16)}–{sl.arrives.slice(11, 16)} ·{" "}
+                  {sl.stops === 0 ? "nonstop" : `${sl.stops} stop${sl.stops === 1 ? "" : "s"}`} · {sl.flights.join(", ")}
+                </p>
+              ))}
+              <button
+                type="button"
+                onClick={() => pickOffer(offer)}
+                aria-pressed={flPicked?.id === offer.id}
+                className={
+                  "mt-2 min-h-10 rounded-xl border px-3 text-sm " +
+                  (flPicked?.id === offer.id ? "border-teal-800 bg-teal-50 font-semibold text-teal-900" : "border-stone-300 bg-white")
+                }
+              >
+                {flPicked?.id === offer.id ? "Selected" : "Select this flight"}
+              </button>
+            </article>
+          ))}
+          {flPicked && (
+            <div className="rounded-2xl border border-teal-800 bg-teal-50 p-4 shadow-sm">
+              <h4 className="text-base font-semibold">Who is flying? ({flPicked.total})</h4>
+              {flTravelers.map((t, i) => (
+                <div key={i} className="mt-2 flex flex-wrap gap-2 rounded-xl border border-teal-800/30 bg-white p-3">
+                  <p className="w-full text-sm font-semibold">Traveler {i + 1}</p>
+                  <label className="grow text-sm font-medium">
+                    Title
+                    <select className={input + " mt-1 w-full"} value={t.title} onChange={(e) => patchTraveler(i, { title: e.target.value })}>
+                      <option value="mr">Mr</option>
+                      <option value="mrs">Mrs</option>
+                      <option value="ms">Ms</option>
+                      <option value="miss">Miss</option>
+                    </select>
+                  </label>
+                  <label className="grow text-sm font-medium">
+                    First name
+                    <input className={input + " mt-1 w-full"} value={t.given} onChange={(e) => patchTraveler(i, { given: e.target.value })} required />
+                  </label>
+                  <label className="grow text-sm font-medium">
+                    Last name
+                    <input className={input + " mt-1 w-full"} value={t.family} onChange={(e) => patchTraveler(i, { family: e.target.value })} required />
+                  </label>
+                  <label className="grow text-sm font-medium">
+                    Birth date
+                    <input className={input + " mt-1 w-full"} placeholder="YYYY-MM-DD" value={t.born} onChange={(e) => patchTraveler(i, { born: e.target.value })} required />
+                  </label>
+                  <label className="grow text-sm font-medium">
+                    Email
+                    <input className={input + " mt-1 w-full"} value={t.email} onChange={(e) => patchTraveler(i, { email: e.target.value })} required />
+                  </label>
+                  <label className="grow text-sm font-medium">
+                    Phone
+                    <input className={input + " mt-1 w-full"} placeholder="+919876543210" value={t.phone} onChange={(e) => patchTraveler(i, { phone: e.target.value })} required />
+                  </label>
+                  <label className="text-sm font-medium">
+                    Gender (airline form)
+                    <select className={input + " mt-1 w-full"} value={t.gender} onChange={(e) => patchTraveler(i, { gender: e.target.value })}>
+                      <option value="m">M</option>
+                      <option value="f">F</option>
+                    </select>
+                  </label>
+                </div>
+              ))}
+              <button
+                type="button"
+                onClick={() => bookFlight().catch(() => undefined)}
+                disabled={bookingBusy !== null}
+                className="mt-2 min-h-12 w-full rounded-xl bg-teal-800 px-4 font-medium text-white disabled:opacity-50"
+              >
+                {bookingBusy ? "Booking…" : "Book this flight (goes to Approvals)"}
+              </button>
+              <p className="mt-1 text-xs text-stone-600">Test mode issues a real test order with a booking reference — no ticket, no charge.</p>
+            </div>
+          )}
+        </section>
+      )}
 
       {liveRoute && (
         <section className="rounded-2xl border border-teal-800 bg-teal-50 p-4 shadow-sm">

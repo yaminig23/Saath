@@ -18,8 +18,10 @@ from sqlalchemy.orm import Session as DbSession
 import auth
 import central
 import demo_bookings
+import duffel
 import gcal
 import gmail
+import handoffs
 import kernel
 import maps
 import memory
@@ -642,6 +644,15 @@ def maps_route(from_place: str = "", to_place: str = "", mode: str = "driving", 
         raise HTTPException(status_code=422, detail=str(exc))
 
 
+@app.get("/travel/flights/search")
+def travel_flights_search(origin: str = "", destination: str = "", date: str = "", adults: int = 1, user=Depends(require_user)):
+    """Search real flight offers (test keys use invented test schedules)."""
+    try:
+        return duffel.search_flights(origin=origin, destination=destination, date=date, adults=adults)
+    except kernel.KernelError as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
+
+
 @app.get("/demo/options")
 def demo_options(
     kind: str = "cab",
@@ -663,6 +674,23 @@ def demo_options(
         if kind == "venue":
             return demo_bookings.search_venues(area)
         raise demo_bookings.DemoError("kind must be cab, appointment, service, or venue")
+    except kernel.KernelError as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
+
+
+@app.get("/demo/handoff")
+def demo_handoff(
+    kind: str = "cab",
+    from_place: str = "",
+    to_place: str = "",
+    service: str = "",
+    area: str = "",
+    q: str = "",
+    user=Depends(require_user),
+):
+    """A real-booking handoff: the provider URL with details filled in."""
+    try:
+        return handoffs.handoff_for(kind, from_place=from_place, to_place=to_place, service=service, area=area, q=q)
     except kernel.KernelError as exc:
         raise HTTPException(status_code=422, detail=str(exc))
 

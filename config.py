@@ -54,6 +54,8 @@ class Settings:
         self.ffprobe_path = os.environ.get("FFPROBE_PATH", "")
         self.gcal_client_id = os.environ.get("GOOGLE_CALENDAR_CLIENT_ID", "")
         self.gcal_client_secret = os.environ.get("GOOGLE_CALENDAR_CLIENT_SECRET", "")
+        self.duffel_api_key = os.environ.get("DUFFEL_API_KEY", "")
+        self.duffel_env = os.environ.get("DUFFEL_ENV", "test")
         self.maps_api_key = os.environ.get("GOOGLE_MAPS_API_KEY", "")
         try:
             self.maps_daily_cap = int(os.environ.get("GOOGLE_MAPS_DAILY_CAP", "200"))

@@ -17,6 +17,8 @@ toolbar). Save under `docs/submission/shots/`.
 | 10 | Nearby | Dentist results with LIVE badge + route |
 | 11 | Settings | "Saath replies in: Hindi" selected |
 | 12 | Connect/Nearby | Sample-data labels visible (honesty proof) |
+| 13 | Bookings | REAL HANDOFF panel (Uber, route filled in) |
+| 14 | Flights tab | Offer list + test-mode banner + traveler form |
 
 How: `cd Documents\Saath; .\.venv\Scripts\python.exe -m uvicorn
 main:app --host 127.0.0.1 --port 8091`, open `/web/`, log in as
