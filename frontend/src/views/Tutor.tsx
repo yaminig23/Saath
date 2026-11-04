@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import type { FormEvent } from "react";
 import { call } from "../api";
 import type { Notify } from "../api";
-import Jizo from "../companion/Jizo";
+import Saath from "../companion/Saath";
 import type { Navigate, OpenTask } from "../nav";
 import { readPhoto } from "../photo";
 import { useSettings } from "../settings";
@@ -189,15 +189,16 @@ export default function Tutor({ notify, navigate, onOpenTask }: TutorProps) {
   const tab = (active: boolean) =>
     "min-h-12 flex-1 rounded-xl border px-3 text-[15px] " +
     (active ? "border-teal-800 bg-teal-800 font-semibold text-white" : "border-stone-300 bg-white");
-  const jizoState = reading ? "speaking" : busy || lookBusy ? "thinking" : lesson || lookResult ? "teaching" : "idle";
+  const saathState = reading ? "speaking" : busy || lookBusy ? "thinking" : lesson || lookResult ? "teaching" : "idle";
 
   return (
     <div className="mx-auto max-w-2xl">
       <div className="flex items-center gap-3">
-        <Jizo state={jizoState} size={72} />
+        <Saath state={saathState} size={72} />
         <div>
           <h2 className="text-2xl font-bold">Learn</h2>
           <p className="text-sm text-stone-500">Saath teaches in small steps, with pictures and patience.</p>
+          <p className="mt-1 text-sm text-stone-600">Confused anywhere? Open Talk and ask Saath - every lesson answers follow-ups.</p>
         </div>
       </div>
 

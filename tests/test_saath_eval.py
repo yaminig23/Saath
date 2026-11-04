@@ -1,13 +1,13 @@
-"""Jizo evaluation suite (production-grade companion mission).
+"""Saath evaluation suite (production-grade companion mission).
 
 Fifteen behaviour categories exercised deterministically over a
 throwaway database with scripted model clients - no network, no
 quota. Each test asserts an observable outcome (stored rows, replies,
 captured prompts), never the model's word for it. Categories needing
 live-model quality judgement are marked LIVE-ONLY in
-docs/jizo/eval-baseline.md and stay out of this suite.
+docs/saath/eval-baseline.md and stay out of this suite.
 
-Run from the project folder: python -m unittest tests.test_jizo_eval
+Run from the project folder: python -m unittest tests.test_saath_eval
 """
 
 import json
@@ -80,7 +80,7 @@ class RulesClient:
         return ModelResponse(text=text, model=self.name, input_chars=10, output_chars=len(text))
 
 
-class JizoEvalTest(unittest.TestCase):
+class SaathEvalTest(unittest.TestCase):
     def setUp(self):
         handle, self.db_path = tempfile.mkstemp(suffix=".db")
         os.close(handle)

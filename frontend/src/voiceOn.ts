@@ -3,7 +3,7 @@ import type { Notify } from "./api";
 import { createWakeListener, speak, speechSupported } from "./voice";
 import type { WakeCallbacks } from "./voice";
 
-/* Hands-free engine: listens for "Hi Jizo" from any screen, then hands
+/* Hands-free engine: listens for "Hi Saath" from any screen, then hands
    a voice turn to Talk. The mic runs only while this is switched on, pauses
    when the tab is hidden, and never starts by itself (browsers require a tap).
 
@@ -22,8 +22,9 @@ export interface VoiceEngineDeps {
   speak: (text: string, opts: { lang: string; onEnd: () => void }) => void;
   notify: Notify;
   onWake: () => void;
-  onFatal: () => void;
+  onFatal: (message: string) => void;
   onPhase: (phase: VoicePhase) => void;
+  onHeard?: (text: string) => void;
   handoffMs?: number;
   restartBaseMs?: number;
   ackTimeoutMs?: number;
@@ -61,8 +62,9 @@ export class VoiceEngine {
   start() {
     if (this.phase !== "off") return;
     if (!this.deps.isSupported()) {
-      this.deps.notify("Voice input is not supported in this browser. It works best in Chrome or Edge.", true);
-      this.deps.onFatal();
+      const message = "Voice input is not supported in this browser. It works best in Chrome or Edge.";
+      this.deps.notify(message, true);
+      this.deps.onFatal(message);
       return;
     }
     this.want = true;
@@ -70,7 +72,7 @@ export class VoiceEngine {
     this.ends = [];
     this.beginWake();
     if (this.phase !== "off") {
-      this.deps.notify("Hands-free is on — say Hi Jizo whenever you need me.");
+      this.deps.notify("Hands-free is on — say Hi Saath whenever you need me.");
     }
   }
 
@@ -111,7 +113,7 @@ export class VoiceEngine {
     this.stopListener();
     this.setPhase("off");
     this.deps.notify(message, true);
-    this.deps.onFatal();
+    this.deps.onFatal(message);
   }
 
   private beginWake() {
@@ -123,6 +125,9 @@ export class VoiceEngine {
         onWake: () => this.handleWake(),
         onError: (message, fatal) => this.handleError(message, fatal),
         onEnd: () => this.handleEnd(),
+        onInterim: (text) => {
+          if (this.phase === "wake") this.deps.onHeard?.(text);
+        },
       },
       this.lang
     );
@@ -191,11 +196,12 @@ interface EngineOpts {
   lang: string;
   notify: Notify;
   onWake: () => void;
-  onFatal: () => void;
+  onFatal: (message: string) => void;
 }
 
 export function useVoiceOnEngine({ enabled, lang, notify, onWake, onFatal }: EngineOpts) {
   const [phase, setPhase] = useState<VoicePhase>("off");
+  const [heard, setHeard] = useState("");
   const [engine] = useState(
     () =>
       new VoiceEngine(
@@ -207,13 +213,14 @@ export function useVoiceOnEngine({ enabled, lang, notify, onWake, onFatal }: Eng
           onWake,
           onFatal,
           onPhase: (next) => setPhase(next),
+          onHeard: (text) => setHeard(text),
         },
         lang
       )
   );
 
   useEffect(() => {
-    engine.updateDeps({ notify, onWake, onFatal });
+    engine.updateDeps({ notify, onWake, onFatal, onHeard: (text) => setHeard(text) });
   });
 
   useEffect(() => {
@@ -236,8 +243,15 @@ export function useVoiceOnEngine({ enabled, lang, notify, onWake, onFatal }: Eng
     };
   }, [engine]);
 
+  useEffect(() => {
+    if (!heard) return;
+    const timer = window.setTimeout(() => setHeard(""), 4000);
+    return () => window.clearTimeout(timer);
+  }, [heard]);
+
   return {
     phase,
+    heard,
     start: () => engine.start(),
     stop: () => engine.stop(),
   };

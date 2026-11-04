@@ -26,6 +26,7 @@ export default function Reminders({ notify, onOpenTask }: RemindersProps) {
   }
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     load().catch((err: unknown) => notify(err instanceof Error ? err.message : "Could not load due reminders.", true));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);

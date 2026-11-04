@@ -55,6 +55,7 @@ export default function Memories({ notify, onChanged }: MemoriesProps) {
   }
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     load().catch((err: unknown) => notify(err instanceof Error ? err.message : "Could not load memories.", true));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);

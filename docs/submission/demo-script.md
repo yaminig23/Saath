@@ -3,11 +3,13 @@
 Total: ~180 seconds. Narrator speaks; screen shows the app at
 http://127.0.0.1:8091/web/ logged in as `demostudio`.
 
-## 0:00–0:20 — The promise (Home + Jizo)
+## 0:00–0:20 — The promise (Home + Saath)
 > "Meet Saath — one companion for everything in daily life. Say hello
-> to Jizo."
-- Show Home: Jizo blob floats, greeting visible.
-- Say "Hi Jizo" (or click mic): "Good evening! What shall we do today?"
+> to Saath."
+- Show Home with the left panel: Saath blob floats, greeting visible.
+- Welcome overlay speaks on first open (capture it with a fresh profile).
+- Say "Hi Saath" (or click mic): "Good evening! What shall we do today?"
+- Flash dark mode from the sidebar toggle.
 
 ## 0:20–0:50 — Real understanding → delegation (Chat)
 > "I tell Saath what I need in plain words. It understands, plans,
@@ -49,7 +51,7 @@ http://127.0.0.1:8091/web/ logged in as `demostudio`.
 ## 2:40–3:00 — Trust close (Approvals + Developer)
 > "And Saath never pretends: approvals gate every real action,
 > failures are reported, and 218 automated tests guard it all."
-- Flash Approvals screen + test count. End on Jizo celebrating.
+- Flash Approvals screen + test count. End on Saath celebrating.
 
 ## Recording notes
 - Start the server first (see checklist). Keep Chrome at 1280×800.

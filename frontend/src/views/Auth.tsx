@@ -1,7 +1,7 @@
 import { useState } from "react";
 import type { FormEvent } from "react";
 import { call } from "../api";
-import Jizo from "../companion/Jizo";
+import Saath from "../companion/Saath";
 
 interface AuthProps {
   onDone: (username: string) => void;
@@ -62,7 +62,7 @@ export default function Auth({ onDone }: AuthProps) {
     <div className="mx-auto mt-8 grid max-w-3xl gap-4 px-4 md:grid-cols-2">
       <div className="rounded-2xl border border-stone-200 bg-white p-5 shadow-sm">
         <div className="mb-3 flex items-center gap-3">
-          <Jizo state="idle" size={64} />
+          <Saath state="idle" size={64} />
           <h2 className="text-xl font-bold">Welcome back</h2>
         </div>
         <form onSubmit={submitLogin} className="flex flex-col gap-3">

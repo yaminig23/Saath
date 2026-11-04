@@ -31,6 +31,7 @@ import providers
 import reminders
 import threads
 import tools
+import trusted
 import tutor
 import video
 import worker
@@ -58,7 +59,7 @@ def root():
     return FileResponse(os.path.join(_WEB_DIR, "index.html"))
 
 
-app.mount("/web", StaticFiles(directory=_WEB_DIR), name="web")
+app.mount("/web", StaticFiles(directory=_WEB_DIR, html=True), name="web")
 
 
 # --- request shapes (FastAPI checks these automatically) ---
@@ -99,6 +100,12 @@ class ReminderBody(BaseModel):
     message: str
     deadline: str
     priority: str = "normal"
+
+
+class TrustedContactBody(BaseModel):
+    name: str
+    email: str
+    relation: str = ""
 
 
 class MemoryBody(BaseModel):
@@ -357,6 +364,30 @@ def delete_memory(memory_id: int, user=Depends(require_user), db: DbSession = De
         return memory.delete_memory(db, user_id=user.id, memory_id=memory_id)
     except kernel.TaskNotFoundError:
         raise HTTPException(status_code=404, detail="memory not found")
+
+
+@app.get("/trusted-contacts")
+def trusted_contacts_list(user=Depends(require_user), db: DbSession = Depends(get_session)):
+    """My real trusted people (for approval-gated escalation only)."""
+    return trusted.list_contacts(db, user_id=user.id)
+
+
+@app.post("/trusted-contacts", status_code=201)
+def trusted_contact_add(body: TrustedContactBody, user=Depends(require_user), db: DbSession = Depends(get_session)):
+    """Name one trusted person. Authorises nothing by itself."""
+    try:
+        return trusted.add_contact(db, user_id=user.id, name=body.name, email=body.email, relation=body.relation)
+    except kernel.KernelError as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
+
+
+@app.delete("/trusted-contacts/{contact_id}")
+def trusted_contact_delete(contact_id: int, user=Depends(require_user), db: DbSession = Depends(get_session)):
+    """Remove one trusted person."""
+    try:
+        return trusted.delete_contact(db, user_id=user.id, contact_id=contact_id)
+    except kernel.TaskNotFoundError:
+        raise HTTPException(status_code=404, detail="trusted contact not found")
 
 
 @app.post("/consents")

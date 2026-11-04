@@ -1,8 +1,8 @@
 import type { CompanionState } from "./companionStates";
 import { STATE_LABEL } from "./companionStates";
 
-/* Jizo: Saath's blob companion. One SVG identity, CSS motion, stills for
-   reduced motion. Expressions follow the Jizo design brief (leaves, teal
+/* Saath: Saath's blob companion. One SVG identity, CSS motion, stills for
+   reduced motion. Expressions follow the Saath design brief (leaves, teal
    scarf with golden lotus, brows + blush + hands per state). */
 
 const INK = "#30251F";
@@ -19,7 +19,7 @@ const MOUTH = "#8a5a44";
 const TONGUE = "#e8a0a0";
 const HEART = "#E8736B";
 
-interface JizoProps {
+interface SaathProps {
   state: CompanionState;
   size?: number;
 }
@@ -306,7 +306,7 @@ function Lotus({ x, y, s }: { x: number; y: number; s: number }) {
   );
 }
 
-export default function Jizo({ state, size = 160 }: JizoProps) {
+export default function Saath({ state, size = 160 }: SaathProps) {
   const tilt = state === "curious" ? "rotate(-4 110 120)" : undefined;
   const glow = state === "happy" || state === "excited" || state === "celebrating";
   return (

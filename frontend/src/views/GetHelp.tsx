@@ -1,16 +1,20 @@
+import { useRef } from "react";
 import type { Navigate } from "../nav";
 
 /* Real help: example prompts that actually send, tips, shortcuts, emergencies. */
 
 export default function GetHelp({ navigate }: { navigate: Navigate }) {
   const examples = [
+    "I need to go to a pharmacy, but I don't know where to go",
     "Remind me to drink water tomorrow at 9am",
     "Give me my briefing",
     "What do you remember about me?",
   ];
+  const promptCount = useRef(0);
 
   function tryIt(prompt: string) {
-    navigate("talk", null, { prompt, promptId: Date.now() });
+    promptCount.current += 1;
+    navigate("talk", null, { prompt, promptId: promptCount.current });
   }
 
   return (
@@ -49,11 +53,32 @@ export default function GetHelp({ navigate }: { navigate: Navigate }) {
       </section>
 
       <section className="rounded-2xl border border-stone-200 bg-white p-4 shadow-sm">
-        <h3 className="text-base font-semibold">Emergencies</h3>
+        <h3 className="text-base font-semibold">People who can help</h3>
+        <p className="mt-1 text-stone-600">
+          Name real people Saath may message in a pinch. Every message pops up for your approval first.
+        </p>
+        <button
+          type="button"
+          onClick={() => navigate("more", "trusted")}
+          className="mt-2 min-h-12 rounded-xl bg-teal-800 px-4 font-medium text-white"
+        >
+          My trusted people
+        </button>
+      </section>
+
+      <section className="rounded-2xl border border-red-200 bg-red-50 p-4 shadow-sm">
+        <h3 className="text-base font-semibold text-red-900">Emergency</h3>
         <p className="mt-1 text-stone-600">
           Saath cannot call anyone for you. In an emergency, call your local emergency number directly
-          (for example 112 in India and much of Europe, 911 in the US) and follow their instructions.
+          and follow their instructions.
         </p>
+        <a
+          href="tel:112"
+          className="mt-2 inline-block min-h-12 rounded-xl bg-red-700 px-5 py-3 font-semibold text-white"
+        >
+          Call 112 now (India)
+        </a>
+        <p className="mt-1 text-xs text-stone-500">Your phone places the call — Saath only opens the dialer.</p>
       </section>
 
       <section className="rounded-2xl border border-stone-200 bg-white p-4 shadow-sm">

@@ -83,7 +83,7 @@ def build_filter(*, motion: str, seconds: float, index: int, title: str, orienta
     if is_last and seconds >= 2:
         chain += (
             ",drawtext=fontfile='C\\:/Windows/Fonts/arial.ttf'"
-            ":text='Ask Jizo about this lesson':fontsize=36:fontcolor=white"
+            ":text='Ask Saath about this lesson':fontsize=36:fontcolor=white"
             ":box=1:boxcolor=black@0.6:boxborderw=12"
             ":x=(w-text_w)/2:y=h-140"
         )

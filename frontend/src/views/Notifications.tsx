@@ -10,6 +10,7 @@ export default function Notifications({ notify }: { notify: Notify }) {
   }
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     load().catch((err: unknown) => notify(err instanceof Error ? err.message : "Could not load notifications.", true));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);

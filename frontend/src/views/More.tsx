@@ -8,6 +8,7 @@ import Notifications from "./Notifications";
 import SettingsScreen from "./Settings";
 import StayIndependent from "./StayIndependent";
 import Sub from "./Sub";
+import TrustedContacts from "./TrustedContacts";
 
 interface MoreProps {
   view: string | null;
@@ -16,9 +17,10 @@ interface MoreProps {
   notify: Notify;
   openTask: OpenTask;
   onLogout: () => void;
+  onReplayWelcome: () => void;
 }
 
-export default function More({ view, username, navigate, notify, openTask, onLogout }: MoreProps) {
+export default function More({ view, username, navigate, notify, openTask, onLogout, onReplayWelcome }: MoreProps) {
   if (view === "help") {
     return (
       <Sub title="Get Help" onBack={() => navigate("more", null)}>
@@ -50,7 +52,7 @@ export default function More({ view, username, navigate, notify, openTask, onLog
   if (view === "settings") {
     return (
       <Sub title="Settings" onBack={() => navigate("more", null)}>
-        <SettingsScreen notify={notify} onLogout={onLogout} />
+        <SettingsScreen notify={notify} onLogout={onLogout} onReplayWelcome={onReplayWelcome} />
       </Sub>
     );
   }
@@ -61,12 +63,20 @@ export default function More({ view, username, navigate, notify, openTask, onLog
       </Sub>
     );
   }
+  if (view === "trusted") {
+    return (
+      <Sub title="Trusted People" onBack={() => navigate("more", null)}>
+        <TrustedContacts notify={notify} navigate={navigate} />
+      </Sub>
+    );
+  }
 
   const items = [
     { key: "help", icon: <HelpIcon />, title: "Get Help", blurb: "How to talk to Saath, voice tips, emergencies" },
     { key: "independent", icon: <SunIcon />, title: "Stay Independent", blurb: "Comfort settings and daily confidence" },
     { key: "memories", icon: <BookIcon />, title: "What Saath Remembers", blurb: "View, correct, delete, and consent" },
     { key: "notifications", icon: <BellIcon />, title: "Notifications", blurb: "What Saath has told you" },
+    { key: "trusted", icon: <HelpIcon />, title: "Trusted People", blurb: "Real contacts for escalation" },
     { key: "settings", icon: <GearIcon />, title: "Settings", blurb: "Text, voice, accessibility, account" },
     { key: "developer", icon: <CodeIcon />, title: "Developer Tools", blurb: "Worker, failures, demo, API info" },
   ];

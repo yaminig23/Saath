@@ -66,7 +66,7 @@ interface StoredMemory {
   value: string;
 }
 
-export default function SettingsScreen({ notify, onLogout }: { notify: Notify; onLogout: () => void }) {
+export default function SettingsScreen({ notify, onLogout, onReplayWelcome }: { notify: Notify; onLogout: () => void; onReplayWelcome?: () => void }) {
   const { settings, update } = useSettings();
   const [backend, setBackend] = useState("Checking…");
   const [chatLang, setChatLang] = useState("en");
@@ -132,7 +132,8 @@ export default function SettingsScreen({ notify, onLogout }: { notify: Notify; o
         ]}
       />
       <Toggle label="High contrast" hint="Plain black on white" on={settings.highContrast} onClick={() => update({ highContrast: !settings.highContrast })} />
-      <Toggle label="Reduce motion" hint="Jizo holds still" on={settings.reduceMotion} onClick={() => update({ reduceMotion: !settings.reduceMotion })} />
+            <Toggle label="Dark mode" hint="Warm charcoal theme" on={settings.darkMode} onClick={() => update({ darkMode: !settings.darkMode })} />
+      <Toggle label="Reduce motion" hint="Saath holds still" on={settings.reduceMotion} onClick={() => update({ reduceMotion: !settings.reduceMotion })} />
       <Toggle label="Voice replies" hint="Saath reads answers aloud" on={settings.voiceReplies} onClick={() => update({ voiceReplies: !settings.voiceReplies })} />
       <Choices
         label="Speech speed"
@@ -174,6 +175,15 @@ export default function SettingsScreen({ notify, onLogout }: { notify: Notify; o
       <div className="rounded-xl border border-stone-200 bg-white px-4 py-3 text-sm text-stone-500">
         Saath keeps your sign-in and the AI key on the server. These display and voice settings stay on this device only.
       </div>
+      {onReplayWelcome && (
+        <button
+          type="button"
+          onClick={onReplayWelcome}
+          className="min-h-14 rounded-xl border border-stone-300 bg-white px-4 py-3 text-base font-medium"
+        >
+          Replay welcome tour
+        </button>
+      )}
       <button
         type="button"
         onClick={onLogout}

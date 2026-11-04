@@ -15,6 +15,7 @@ export default function Failures({ notify, onOpenTask }: FailuresProps) {
   }
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     load().catch((err: unknown) => notify(err instanceof Error ? err.message : "Could not load failures.", true));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);

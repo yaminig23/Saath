@@ -12,7 +12,7 @@ fastapi dev
 ```
 
 Then open **http://127.0.0.1:8000/** in your browser: register an
-account, log in, and use Chat (with voice, hands-free "Hi Jizo",
+account, log in, and use Chat (with voice, hands-free "Hi Saath",
 and the robot companion),
 Tasks, Reminders, Briefing, Memories, Approvals, Failures,
 Notifications, the Worker, the Visual Tutor, and the Demo guide from
@@ -90,14 +90,14 @@ npm run build
 
 Then refresh the browser tab (no server restart needed).
 
-## Hands-free voice ("Hi Jizo")
+## Hands-free voice ("Hi Saath")
 
 Tap **Voice** in the top bar (once per visit — browsers require a tap
-before the mic may run), then say **Hi Jizo** from any screen. Saath
+before the mic may run), then say **Hi Saath** from any screen. Saath
 answers "Yes?", opens Talk, and holds a voice conversation: it listens,
 sends what you say, reads the reply aloud, and listens again. Say
 **thank you** (or tap Stop) to end the conversation; the mic keeps
-watching for Hi Jizo until you tap Voice off. The mic pauses when the
+watching for Hi Saath until you tap Voice off. The mic pauses when the
 tab is hidden, ignores Saath's own spoken replies, and everything runs
 in the browser via built-in speech services — no audio is uploaded by
 Saath. Works best in Chrome or Edge.

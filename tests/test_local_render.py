@@ -69,7 +69,7 @@ class RenderLogicTest(unittest.TestCase):
             self.assertTrue(titled)
             self.assertIn("drawtext=", chain)
             self.assertIn("a\\:b\\'c\\%d\\\\e", chain)
-            self.assertIn("Ask Jizo about this lesson", chain)
+            self.assertIn("Ask Saath about this lesson", chain)
         else:
             self.assertFalse(titled)
             self.assertNotIn("drawtext=", chain)

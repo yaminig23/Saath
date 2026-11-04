@@ -5,7 +5,7 @@
 cd $HOME\Documents\Saath
 .\.venv\Scripts\python.exe -m uvicorn main:app --host 127.0.0.1 --port 8091
 ```
-- Open http://127.0.0.1:8091/web/ — Home with Jizo loads.
+- Open http://127.0.0.1:8091/web/ — Home with Saath loads.
 - Log in as `demostudio` (seeded; owns 4 COMPLETED video lessons).
 - If port 8091 is busy, try 8092–8100 (same URL pattern).
 

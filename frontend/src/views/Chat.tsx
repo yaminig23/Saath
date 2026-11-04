@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import type { FormEvent } from "react";
 import { call } from "../api";
 import type { ChatReply, Notify } from "../api";
-import Jizo from "../companion/Jizo";
+import Saath from "../companion/Saath";
 import { useSettings } from "../settings";
 import { createListener, matchesStopPhrase, pauseSpeaking, resumeSpeaking, speak, speechOutputSupported, speechSupported, stopSpeaking } from "../voice";
 
@@ -65,7 +65,7 @@ export default function Chat({ notify, initial, promptId, voiceTurn, handsFree }
     if (voiceTurn !== undefined && voiceTurnRef.current !== voiceTurn) {
       voiceTurnRef.current = voiceTurn;
       if (busyRef.current) {
-        notify("Let me finish this answer — say Hi Jizo again after.");
+        notify("Let me finish this answer — say Hi Saath again after.");
         return;
       }
       if (!canHear) {
@@ -152,7 +152,7 @@ export default function Chat({ notify, initial, promptId, voiceTurn, handsFree }
             if (settings.voiceReplies && canSpeak) {
               speak("Goodbye for now.", { rate: settings.speechRate, lang: settings.lang });
             } else {
-              notify("Hands-free paused — say Hi Jizo anytime.");
+              notify("Hands-free paused — say Hi Saath anytime.");
             }
             return;
           }
@@ -197,7 +197,7 @@ export default function Chat({ notify, initial, promptId, voiceTurn, handsFree }
 
   function toggleMic() {
     if (handsFree) {
-      notify("Hands-free is on — just say Hi Jizo. Turn Voice off above for the button.");
+      notify("Hands-free is on — just say Hi Saath. Turn Voice off above for the button.");
       return;
     }
     if (listening) {
@@ -284,7 +284,7 @@ export default function Chat({ notify, initial, promptId, voiceTurn, handsFree }
   return (
     <div className="mx-auto max-w-3xl">
       <div className="mb-3 flex flex-wrap items-center gap-3">
-        <Jizo state={listening ? "listening" : speaking ? "speaking" : busy ? "thinking" : "idle"} size={64} />
+        <Saath state={listening ? "listening" : speaking ? "speaking" : busy ? "thinking" : "idle"} size={64} />
         <div>
           <h2 className="text-xl font-bold">Talk</h2>
           <p className="text-sm text-stone-500" role="status">
@@ -372,7 +372,7 @@ export default function Chat({ notify, initial, promptId, voiceTurn, handsFree }
             className={"min-h-12 rounded-xl border px-4 " + (listening ? "border-red-700 text-red-700" : "border-stone-300 bg-white")}
             aria-pressed={listening}
           >
-            {listening ? "Stop" : handsFree ? "Say Hi Jizo" : "Speak"}
+            {listening ? "Stop" : handsFree ? "Say Hi Saath" : "Speak"}
           </button>
         )}
         <button type="submit" disabled={busy} className="min-h-12 rounded-xl bg-teal-800 px-5 font-medium text-white disabled:opacity-50">

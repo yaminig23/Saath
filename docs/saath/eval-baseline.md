@@ -1,9 +1,9 @@
-# Jizo Eval — Baseline and After-Change Record
+# Saath Eval — Baseline and After-Change Record
 
-Suite: `tests/test_jizo_eval.py` — 15 deterministic categories, scripted
+Suite: `tests/test_saath_eval.py` — 15 deterministic categories, scripted
 model clients, throwaway database, no network, no quota.
 
-## Baseline (before Jizo mission changes, 2026-11-04 ~23:15 IST)
+## Baseline (before Saath mission changes, 2026-11-04 ~23:15 IST)
 
 Ran 15 tests in ~2s: **11 pass, 4 fail.**
 
@@ -66,7 +66,7 @@ trace).
 ## Gaps the suite documents honestly (not yet fixed)
 
 - Cat 10: "cancel that reminder" is read as a reminder missing a
-  time — chat has no cancellation path. Jizo never claims it
+  time — chat has no cancellation path. Saath never claims it
   cancelled; the note asks for a time, which is honest but unhelpful.
 - Chat reaches 2 specialists + 4 read-only tools. Gmail, bookings,
   weather, tutor stay screens-only by design (all need approval

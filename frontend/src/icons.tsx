@@ -24,6 +24,14 @@ function Svg({ size = 28, children }: IconProps & { children: ReactNode }) {
   );
 }
 
+export function MoonIcon(p: IconProps) {
+  return (
+    <Svg {...p}>
+      <path d="M20 13.5A8 8 0 0 1 10.5 4 6.5 6.5 0 1 0 20 13.5z" />
+    </Svg>
+  );
+}
+
 export function HomeIcon(p: IconProps) {
   return (
     <Svg {...p}>
@@ -182,6 +190,14 @@ export function LogoutIcon(p: IconProps) {
     <Svg {...p}>
       <path d="M13 4H6v16h7" />
       <path d="M10 12h11M18 8l4 4-4 4" />
+    </Svg>
+  );
+}
+
+export function HeartIcon(p: IconProps) {
+  return (
+    <Svg {...p}>
+      <path d="M12 20s-7-4.5-9-9c-1.5-3.5 1-7 4.5-7 2 0 3.5 1.5 4.5 3 1-1.5 2.5-3 4.5-3 3.5 0 6 3.5 4.5 7-2 4.5-9 9-9 9z" />
     </Svg>
   );
 }

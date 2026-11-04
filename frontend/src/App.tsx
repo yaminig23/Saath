@@ -1,12 +1,13 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import { call, getToken, onUnauthorized } from "./api";
-import type { Notify } from "./api";
-import Jizo from "./companion/Jizo";
+import type { ApprovalRow, Notify } from "./api";
+import Saath from "./companion/Saath";
 import type { Navigate, Section, TalkParams } from "./nav";
-import { BookIcon, CalendarIcon, ChatIcon, GridIcon, HomeIcon, MicIcon, UsersIcon } from "./icons";
+import { BookIcon, CalendarIcon, ChatIcon, GridIcon, HomeIcon, MicIcon, MoonIcon, SunIcon, UsersIcon } from "./icons";
+import { NavigationItem } from "./components/ui";
 import { SettingsProvider, useSettings } from "./settings";
-import { speechSupported } from "./voice";
+import { speak, speechOutputSupported, speechSupported } from "./voice";
 import { useVoiceOnEngine } from "./voiceOn";
 import Auth from "./views/Auth";
 import Chat from "./views/Chat";
@@ -14,6 +15,7 @@ import Connect from "./views/Connect";
 import Home from "./views/Home";
 import More from "./views/More";
 import MyLife from "./views/MyLife";
+import Onboarding from "./views/Onboarding";
 import Tutor from "./views/Tutor";
 
 interface Toast {
@@ -52,6 +54,11 @@ function Shell() {
   const [talk, setTalk] = useState<TalkParams>({});
   const [taskFocus, setTaskFocus] = useState<number | null>(null);
   const [toasts, setToasts] = useState<Toast[]>([]);
+  const [voiceBlocked, setVoiceBlocked] = useState(false);
+  const [showIntro, setShowIntro] = useState(() => { try { return localStorage.getItem("saath_onboarded") !== "1"; } catch { return true; } });
+  const [approval, setApproval] = useState<ApprovalRow | null>(null);
+  const seenApprovals = useRef<Set<number>>(new Set());
+  const spokenApprovals = useRef<Set<number>>(new Set());
 
   const notify: Notify = useCallback((message, isError = false) => {
     const id = Date.now() + Math.random();
@@ -82,7 +89,7 @@ function Shell() {
     lang: settings.lang,
     notify,
     onWake: () => navigate("talk", null, { voiceTurn: Date.now() }),
-    onFatal: () => update({ voiceOn: false }),
+    onFatal: (message: string) => { update({ voiceOn: false }); setVoiceBlocked(/blocked|not supported|could not start|keeps stopping/i.test(message)); },
   });
   const handsFree = voice.phase !== "off";
 
@@ -91,12 +98,12 @@ function Shell() {
       voice.stop();
       update({ voiceOn: false });
     } else {
-      update({ voiceOn: true });
+      setVoiceBlocked(false); update({ voiceOn: true });
       voice.start();
     }
   }
 
-  const voiceLabel = voice.phase === "wake" ? "Say Hi Jizo" : voice.phase === "handoff" ? "Listening…" : settings.voiceOn ? "Resume voice" : "Voice off";
+  const voiceLabel = voiceBlocked ? "Mic blocked - tap to retry" : voice.phase === "wake" ? "Say Hi Saath" : voice.phase === "handoff" ? "Listening…" : settings.voiceOn ? "Resume voice" : "Voice off";
 
   function openTask(id: number) {
     setSection("mylife");
@@ -118,15 +125,57 @@ function Shell() {
     setView(null);
   }
 
+  useEffect(() => {
+    if (token === null) return;
+    let cancelled = false;
+    async function poll() {
+      try {
+        const rows = await call<ApprovalRow[]>("GET", "/approvals?status=pending");
+        if (cancelled) return;
+        const fresh = rows.find((r) => !seenApprovals.current.has(r.id)) ?? null;
+        if (fresh && !spokenApprovals.current.has(fresh.id)) {
+          spokenApprovals.current.add(fresh.id);
+          if ((settings.voiceReplies || voice.phase !== "off") && speechOutputSupported()) {
+            speak("Saath needs your yes: " + fresh.tool + " on task " + fresh.task_id + ". Approve or deny on your screen.", { lang: settings.lang, rate: settings.speechRate });
+          }
+        }
+        setApproval((prev) => (prev && fresh && prev.id === fresh.id ? prev : fresh));
+      } catch {
+        /* next poll retries */
+      }
+    }
+    poll().catch(() => undefined);
+    const timer = window.setInterval(() => { poll().catch(() => undefined); }, 15000);
+    return () => { cancelled = true; window.clearInterval(timer); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [token]);
+
+  async function decideApproval(id: number, approve: boolean) {
+    try {
+      await call("POST", "/approvals/" + id + "/decide", { approve });
+      seenApprovals.current.add(id);
+      setApproval(null);
+      notify(approve ? "Approval granted." : "Approval denied.");
+    } catch (err) {
+      notify(err instanceof Error ? err.message : "Decision failed.", true);
+    }
+  }
+
+  function dismissApproval() {
+    if (approval) seenApprovals.current.add(approval.id);
+    setApproval(null);
+  }
+  function toggleTheme() { update({ darkMode: !settings.darkMode }); }
+
   if (token === null) {
     return (
-      <div className="min-h-screen">
-        <header className="border-b border-stone-200 bg-white">
+      <div className="sa-shell min-h-screen">
+        <header className="border-b backdrop-blur-xl md:hidden" style={{ background: "var(--sa-sidebar)", borderColor: "var(--sa-line)" }}>
           <div className="mx-auto flex max-w-5xl items-center gap-3 px-4 py-3">
-            <Jizo state="idle" size={44} />
+            <Saath state="idle" size={44} />
             <div>
               <h1 className="text-lg font-bold">Saath</h1>
-              <p className="text-xs text-stone-500">Your companion for everyday life</p>
+              <p className="sa-muted truncate text-xs">Your companion for everyday life</p>
             </div>
           </div>
         </header>
@@ -136,29 +185,65 @@ function Shell() {
             setToken(getToken());
           }}
         />
-        <Toasts toasts={toasts} />
+        {approval && (
+        <div className="fixed inset-0 z-30 flex items-end justify-center bg-black/50 p-4 sm:items-center" role="alertdialog" aria-modal="true" aria-label="Approval needed">
+          <div className="glass-card w-full max-w-md p-5">
+            <div className="flex items-center gap-3">
+              <Saath state="approval" size={64} />
+              <h2 className="text-xl font-bold">Your yes needed</h2>
+            </div>
+            <p className="mt-2 text-[15px]"><strong>{approval.tool}</strong> on task {approval.task_id}{approval.note ? " - " + approval.note : ""}</p>
+            <div className="mt-3 flex flex-col gap-2">
+              <button type="button" onClick={() => decideApproval(approval.id, true).catch(() => undefined)} className="glow-btn min-h-14 w-full px-4 py-3 text-lg font-semibold">
+                Approve
+              </button>
+              <button type="button" onClick={() => decideApproval(approval.id, false).catch(() => undefined)} className="ghost-btn min-h-12 w-full px-4 py-2 text-[15px]">
+                Deny
+              </button>
+              <div className="flex gap-2">
+                <button type="button" onClick={() => { dismissApproval(); openTask(approval.task_id); }} className="ghost-btn min-h-12 grow px-4 py-2 text-sm">
+                  Open task
+                </button>
+                <button type="button" onClick={dismissApproval} className="ghost-btn min-h-12 grow px-4 py-2 text-sm">
+                  Later
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+      {showIntro && (
+        <Onboarding
+          onEnableVoice={() => { try { localStorage.setItem("saath_onboarded", "1"); } catch { /* private mode */ } setShowIntro(false); toggleVoice(); }}
+          onTypeInstead={() => { try { localStorage.setItem("saath_onboarded", "1"); } catch { /* private mode */ } setShowIntro(false); }}
+        />
+      )}
+      <Toasts toasts={toasts} />
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen pb-24 md:pb-0">
-      <header className="border-b border-stone-200 bg-white">
+    <div className="sa-shell min-h-screen pb-24 md:pb-8">
+      <header className="border-b backdrop-blur-xl md:hidden" style={{ background: "var(--sa-sidebar)", borderColor: "var(--sa-line)" }}>
         <div className="mx-auto flex max-w-5xl items-center gap-3 px-4 py-3">
-          <Jizo state="idle" size={44} />
-          <div>
+          <Saath state="idle" size={44} />
+          <div className="min-w-0">
             <h1 className="text-lg font-bold">Saath</h1>
-            <p className="text-xs text-stone-500">Signed in as {username || "you"}</p>
+            <p className="sa-muted truncate text-xs">Signed in as {username || "you"}</p>
           </div>
+          <button type="button" onClick={toggleTheme} title={settings.darkMode ? "Light mode" : "Dark mode"} aria-label={settings.darkMode ? "Light mode" : "Dark mode"} className="ghost-btn ml-auto flex min-h-12 min-w-12 items-center justify-center">
+            {settings.darkMode ? <SunIcon /> : <MoonIcon />}
+          </button>
           {speechSupported() && (
             <button
               type="button"
               onClick={toggleVoice}
               aria-pressed={handsFree}
-              title="Hands-free voice: say Hi Jizo to talk without tapping"
+              title="Hands-free voice: say Hi Saath to talk without tapping"
               className={
-                "ml-auto flex min-h-12 items-center gap-2 rounded-full border px-4 text-[15px] font-medium " +
-                (handsFree ? "border-teal-800 bg-teal-800 text-white" : "border-stone-300 bg-white text-stone-600")
+                "flex min-h-12 items-center gap-2 whitespace-nowrap px-3 text-sm font-medium " +
+                (handsFree ? "glow-btn" : voiceBlocked ? "border-red-700 bg-red-50 text-red-900" : "ghost-btn")
               }
             >
               <MicIcon />
@@ -166,34 +251,61 @@ function Shell() {
             </button>
           )}
         </div>
+          {handsFree && voice.heard && (
+            <p className="sa-muted max-w-55 truncate text-xs" role="status">
+              Heard: &ldquo;{voice.heard}&rdquo;
+            </p>
+          )}
         <span className="sr-only" role="status">
           {voice.phase === "wake"
-            ? "Hands-free voice is on. Say Hi Jizo."
+            ? "Hands-free voice is on. Say Hi Saath."
             : voice.phase === "handoff"
               ? "Heard you. Opening Talk."
               : "Hands-free voice is off."}
         </span>
       </header>
-      <nav className="sticky top-0 z-10 hidden border-b border-stone-200 bg-white md:block" aria-label="Sections">
-        <div className="mx-auto flex max-w-5xl gap-2 px-4 py-2">
+      
+      <aside className="fixed inset-y-0 left-0 z-20 hidden w-64 flex-col border-r backdrop-blur-xl md:flex" style={{ background: "var(--sa-sidebar)", borderColor: "var(--sa-line)" }} aria-label="Saath panel">
+        <div className="flex items-center gap-3 px-5 pb-4 pt-5">
+          <Saath state="idle" size={48} />
+          <div>
+            <p className="text-xl font-bold">Saath</p>
+            <p className="sa-muted truncate text-xs">Signed in as {username || "you"}</p>
+          </div>
+        </div>
+        <nav className="flex flex-col gap-1 px-3" aria-label="Sections">
           {NAV_ITEMS.map((item) => (
-            <button
+            <NavigationItem
               key={item.section}
-              type="button"
+              active={section === item.section}
               onClick={() => navigate(item.section)}
-              aria-current={section === item.section ? "page" : undefined}
+              label={item.label}
+              icon={item.icon}
+            />
+          ))}
+        </nav>
+        <div className="mt-auto flex flex-col gap-2 p-4">
+          {speechSupported() && (
+            <button
+              type="button"
+              onClick={toggleVoice}
+              aria-pressed={handsFree}
               className={
-                "flex min-h-14 flex-1 items-center justify-center gap-2 rounded-xl px-4 text-base " +
-                (section === item.section ? "bg-teal-800 font-semibold text-white" : "text-stone-600")
+                "flex min-h-12 items-center justify-center gap-2 rounded-xl border px-4 text-[15px] font-medium " +
+                (handsFree ? "glow-btn" : voiceBlocked ? "border-red-700 bg-red-50 text-red-900" : "ghost-btn")
               }
             >
-              {item.icon}
-              {item.label}
+              <MicIcon />
+              {voiceLabel}
             </button>
-          ))}
+          )}
+          <button type="button" onClick={toggleTheme} className="ghost-btn flex min-h-12 items-center justify-center gap-2 px-4 text-[15px]">
+            {settings.darkMode ? <SunIcon /> : <MoonIcon />}
+            {settings.darkMode ? "Light mode" : "Dark mode"}
+          </button>
         </div>
-      </nav>
-      <main className="mx-auto max-w-5xl px-4 py-4">
+      </aside>
+      <main className="mx-auto max-w-7xl px-4 py-4 md:ml-64 md:px-6">
         {section === "home" && <Home username={username || "friend"} notify={notify} navigate={navigate} openTask={openTask} handsFree={handsFree} />}
         {section === "talk" && <Chat notify={notify} initial={talk.prompt} promptId={talk.promptId} voiceTurn={talk.voiceTurn} handsFree={handsFree} />}
         {section === "learn" && <Tutor notify={notify} navigate={navigate} onOpenTask={openTask} />}
@@ -202,10 +314,10 @@ function Shell() {
         )}
         {section === "connect" && <Connect notify={notify} navigate={navigate} />}
         {section === "more" && (
-          <More view={view} username={username || "you"} navigate={navigate} notify={notify} openTask={openTask} onLogout={logout} />
+          <More view={view} username={username || "you"} navigate={navigate} notify={notify} openTask={openTask} onLogout={logout} onReplayWelcome={() => setShowIntro(true)} />
         )}
       </main>
-      <nav className="fixed inset-x-0 bottom-0 z-10 border-t border-stone-200 bg-white md:hidden" aria-label="Sections">
+      <nav className="fixed inset-x-0 bottom-0 z-10 border-t backdrop-blur-xl md:hidden" style={{ background: "var(--sa-sidebar)", borderColor: "var(--sa-line)" }} aria-label="Sections">
         <div className="flex">
           {NAV_ITEMS.map((item) => (
             <button
@@ -215,7 +327,8 @@ function Shell() {
               aria-current={section === item.section ? "page" : undefined}
               className={
                 "flex min-h-16 flex-1 flex-col items-center justify-center gap-0.5 text-[13px] " +
-                (section === item.section ? "font-semibold text-teal-900" : "text-stone-500")
+                (section === item.section ? "sa-accent" : "") +
+                (section === item.section ? "font-semibold" : "sa-muted")
               }
             >
               {item.icon}
@@ -224,6 +337,39 @@ function Shell() {
           ))}
         </div>
       </nav>
+      {approval && (
+        <div className="fixed inset-0 z-30 flex items-end justify-center bg-black/50 p-4 sm:items-center" role="alertdialog" aria-modal="true" aria-label="Approval needed">
+          <div className="glass-card w-full max-w-md p-5">
+            <div className="flex items-center gap-3">
+              <Saath state="approval" size={64} />
+              <h2 className="text-xl font-bold">Your yes needed</h2>
+            </div>
+            <p className="mt-2 text-[15px]"><strong>{approval.tool}</strong> on task {approval.task_id}{approval.note ? " - " + approval.note : ""}</p>
+            <div className="mt-3 flex flex-col gap-2">
+              <button type="button" onClick={() => decideApproval(approval.id, true).catch(() => undefined)} className="glow-btn min-h-14 w-full px-4 py-3 text-lg font-semibold">
+                Approve
+              </button>
+              <button type="button" onClick={() => decideApproval(approval.id, false).catch(() => undefined)} className="ghost-btn min-h-12 w-full px-4 py-2 text-[15px]">
+                Deny
+              </button>
+              <div className="flex gap-2">
+                <button type="button" onClick={() => { dismissApproval(); openTask(approval.task_id); }} className="ghost-btn min-h-12 grow px-4 py-2 text-sm">
+                  Open task
+                </button>
+                <button type="button" onClick={dismissApproval} className="ghost-btn min-h-12 grow px-4 py-2 text-sm">
+                  Later
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+      {showIntro && (
+        <Onboarding
+          onEnableVoice={() => { try { localStorage.setItem("saath_onboarded", "1"); } catch { /* private mode */ } setShowIntro(false); toggleVoice(); }}
+          onTypeInstead={() => { try { localStorage.setItem("saath_onboarded", "1"); } catch { /* private mode */ } setShowIntro(false); }}
+        />
+      )}
       <Toasts toasts={toasts} />
     </div>
   );

@@ -1,4 +1,4 @@
-/* Companion state: Jizo reacts to real app state, never at random. */
+/* Companion state: Saath reacts to real app state, never at random. */
 
 export type CompanionState =
   | "idle"
@@ -48,18 +48,18 @@ export function resolveCompanionState(s: AppStatus): CompanionState {
 }
 
 export const STATE_LABEL: Record<CompanionState, string> = {
-  idle: "Jizo is here",
-  listening: "Jizo is listening",
-  thinking: "Jizo is thinking",
-  speaking: "Jizo is speaking",
-  happy: "Jizo is celebrating",
-  empathetic: "Jizo understands",
-  teaching: "Jizo is teaching",
-  waiting: "Jizo is working on a task",
-  approval: "Jizo needs your approval",
-  connecting: "Jizo is reconnecting",
-  curious: "Jizo is curious",
-  excited: "Jizo is excited",
-  celebrating: "Jizo is celebrating with you",
-  sleepy: "Jizo is resting",
+  idle: "Saath is here",
+  listening: "Saath is listening",
+  thinking: "Saath is thinking",
+  speaking: "Saath is speaking",
+  happy: "Saath is celebrating",
+  empathetic: "Saath understands",
+  teaching: "Saath is teaching",
+  waiting: "Saath is working on a task",
+  approval: "Saath needs your approval",
+  connecting: "Saath is reconnecting",
+  curious: "Saath is curious",
+  excited: "Saath is excited",
+  celebrating: "Saath is celebrating with you",
+  sleepy: "Saath is resting",
 };

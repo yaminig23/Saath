@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { call } from "../api";
 import type { ApprovalRow, Notify } from "../api";
-import Jizo from "../companion/Jizo";
+import Saath from "../companion/Saath";
 
 interface ApprovalsProps {
   notify: Notify;
@@ -48,7 +48,7 @@ export default function Approvals({ notify, onOpenTask }: ApprovalsProps) {
       ) : (
         <div className="flex flex-col gap-3">
           <div className="flex items-center gap-3 rounded-2xl border border-amber-300 bg-amber-50 p-4 shadow-sm">
-            <Jizo state="approval" size={72} />
+            <Saath state="approval" size={72} />
             <p className="text-[15px] font-medium">Saath needs your yes before continuing.</p>
           </div>
           {pending.map((a) => (

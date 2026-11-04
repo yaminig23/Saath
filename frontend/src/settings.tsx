@@ -1,4 +1,5 @@
 /* Genuine accessibility + voice settings, stored on this device only. */
+/* eslint-disable react-refresh/only-export-components -- context module by design: provider + hook + constants live together */
 
 import { createContext, useContext, useEffect, useState } from "react";
 import type { ReactNode } from "react";
@@ -11,6 +12,7 @@ export interface SaathSettings {
   speechRate: number;
   lang: string;
   voiceOn: boolean;
+  darkMode: boolean;
 }
 
 const DEFAULTS: SaathSettings = {
@@ -21,6 +23,7 @@ const DEFAULTS: SaathSettings = {
   speechRate: 1,
   lang: "en-US",
   voiceOn: false,
+  darkMode: true,
 };
 
 export const SPEECH_LANGS = ["en-US", "en-GB", "hi-IN", "es-ES", "fr-FR", "de-DE"];
@@ -58,6 +61,7 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
     root.style.fontSize = settings.textSize === "xl" ? "20px" : settings.textSize === "large" ? "18px" : "";
     root.classList.toggle("a11y-contrast", settings.highContrast);
     root.classList.toggle("a11y-motion", settings.reduceMotion);
+    root.classList.toggle("dark", settings.darkMode);
   }, [settings]);
 
   return (

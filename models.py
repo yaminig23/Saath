@@ -358,3 +358,18 @@ class VideoJob(Base):
     cost_note: Mapped[str] = mapped_column(Text, nullable=False, default="")
     created_at: Mapped[str] = mapped_column(String(32), nullable=False)
     updated_at: Mapped[str] = mapped_column(String(32), nullable=False)
+
+
+class TrustedContact(Base):
+    """A real person the user named: Saath may message them, but only
+    with the user's explicit approval each time. Nothing here is ever
+    contacted silently."""
+
+    __tablename__ = "trusted_contacts"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False)
+    name: Mapped[str] = mapped_column(String(80), nullable=False)
+    email: Mapped[str] = mapped_column(String(254), nullable=False)
+    relation: Mapped[str] = mapped_column(String(80), nullable=False, default="")
+    created_at: Mapped[str] = mapped_column(String(32), nullable=False)
